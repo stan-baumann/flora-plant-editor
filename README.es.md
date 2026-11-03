@@ -6,7 +6,7 @@ Una aplicación web independiente para diseñar plantas para [Flora](https://git
 Tú dibujas la forma y la aplicación escribe el sistema L: axioma, reglas, etapas de crecimiento y melodía.
 Muestra una vista previa del norns, reproduce la melodía y exporta un archivo `.flora` listo para usar.
 
-Todo está en un único archivo, `index.html`. No hay nada que instalar ni compilar, y funciona sin conexión.
+Es HTML, CSS y JavaScript puros: `index.html` más las carpetas `css/` y `js/`. No hay nada que instalar ni compilar, y funciona sin conexión.
 
 ## Inicio rápido
 
@@ -21,11 +21,24 @@ Con el menú 🌐 de arriba a la derecha cambias entre inglés, alemán, españo
 ## Publicar en la web
 
 La aplicación es una página estática con `index.html` como archivo de entrada. Cualquier servidor web o alojamiento estático puede servirla,
-p. ej. GitHub Pages, Netlify o un servidor propio. Sube `index.html`; los archivos README son opcionales.
+p. ej. GitHub Pages, Netlify o un servidor propio. Sube `index.html` junto con las carpetas `css/` y `js/`; los archivos README son opcionales.
 No hay código en el servidor y la aplicación no carga nada de otros servidores.
 
 - Se recomienda **HTTPS**: allí la aplicación copia mediante la interfaz del portapapeles del navegador. Con HTTP simple usa un método de copia más antiguo; todo lo demás funciona igual.
 - Lo que la aplicación recuerda se guarda en el navegador de cada visitante, por separado para cada dirección web.
+
+## Estructura del proyecto
+
+| Ruta | Contenido |
+|---|---|
+| `index.html` | Estructura de la página, punto de entrada |
+| `css/style.css` | Estilos (tema oscuro, diseño) |
+| `js/i18n.js` | Traducciones (es, en, de, fr) y `t()` |
+| `js/flora-core.js` | Simulación de Flora (sistema L, tortuga, altura), formato `.flora` y el compilador del dibujo al código, sin código de la interfaz |
+| `js/examples.js` | Los diez copos de nieve incluidos |
+| `js/app.js` | Interfaz: estado, editor, vista previa, sonido, archivos y exportación |
+
+Los scripts se cargan como scripts normales (no módulos ES) en este orden, de modo que la aplicación también funciona al abrir `index.html` directamente desde el disco.
 
 ## Funciones
 

@@ -6,7 +6,7 @@ Eine eigenständige Web-App, mit der du Pflanzen für [Flora](https://github.com
 Du zeichnest die Form, und die App schreibt das L-System dazu: Axiom, Regeln, Wachstumsstufen und Melodie.
 Sie zeigt eine norns-Vorschau, spielt die Melodie ab und exportiert eine fertige `.flora`-Datei.
 
-Alles steckt in einer einzigen Datei, `index.html`. Es gibt nichts zu installieren oder zu bauen, und die App läuft auch offline.
+Die App besteht aus reinem HTML, CSS und JavaScript: `index.html` plus die Ordner `css/` und `js/`. Es gibt nichts zu installieren oder zu bauen, und die App läuft auch offline.
 
 ## Schnellstart
 
@@ -21,11 +21,24 @@ Alles steckt in einer einzigen Datei, `index.html`. Es gibt nichts zu installier
 ## Im Web bereitstellen
 
 Die App ist eine statische Seite mit `index.html` als Startdatei. Jeder Webserver oder statische Hoster kann sie ausliefern,
-z. B. GitHub Pages, Netlify oder ein eigener Server. Lade `index.html` hoch; die README-Dateien sind optional.
+z. B. GitHub Pages, Netlify oder ein eigener Server. Lade `index.html` zusammen mit den Ordnern `css/` und `js/` hoch; die README-Dateien sind optional.
 Es gibt keinen Code auf dem Server, und die App lädt nichts von fremden Servern nach.
 
 - **HTTPS** ist empfehlenswert: Dort kopiert die App über die Zwischenablage-Schnittstelle des Browsers. Über reines HTTP nutzt sie ein älteres Kopierverfahren; alles andere funktioniert gleich.
 - Was sich die App merkt, liegt im Browser der jeweiligen Besucher, getrennt für jede Webadresse.
+
+## Projektstruktur
+
+| Pfad | Inhalt |
+|---|---|
+| `index.html` | Seitenaufbau, Startdatei |
+| `css/style.css` | Gestaltung (dunkles Design, Layout) |
+| `js/i18n.js` | Übersetzungen (de, en, es, fr) und `t()` |
+| `js/flora-core.js` | Flora-Nachbildung (L-System, Turtle, Tonhöhe), `.flora`-Format und der Compiler von der Zeichnung zum Code – ohne Code der Oberfläche |
+| `js/examples.js` | Die zehn eingebauten Schneeflocken |
+| `js/app.js` | Oberfläche: Zustand, Editor, Vorschau, Klang, Dateien und Export |
+
+Die Skripte werden als normale Skripte (keine ES-Module) in dieser Reihenfolge geladen. So läuft die App auch, wenn du `index.html` direkt von der Festplatte öffnest.
 
 ## Funktionen
 
