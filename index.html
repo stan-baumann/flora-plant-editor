@@ -1,0 +1,1716 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flora-Pflanzen-Editor</title>
+<style>
+:root {
+  --bg: #12151a; --panel: #1b1f26; --panel2: #232831; --line: #313846; --text: #e6e9ef;
+  --muted: #98a2b3; --accent: #6cc4ff; --warn: #ffb454; --err: #ff6b6b; --ok: #7ddc8a;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text);
+  font: 13px/1.4 system-ui, "Segoe UI", Roboto, sans-serif; }
+button, select, input, textarea { font: inherit; color: var(--text); background: var(--panel2);
+  border: 1px solid var(--line); border-radius: 6px; }
+button { padding: 5px 10px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.on { background: #24425a; border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+input[type=number] { width: 64px; padding: 4px 6px; }
+input[type=text] { padding: 4px 6px; }
+select { padding: 4px 6px; }
+textarea { width: 100%; padding: 6px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; resize: vertical; }
+label { color: var(--muted); }
+header { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: var(--panel);
+  border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header h1 { font-size: 15px; margin: 0 10px 0 0; white-space: nowrap; }
+header .sp { flex: 1; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 470px; height: calc(100% - 49px); }
+#left { display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--line); }
+.bar { display: flex; gap: 6px; align-items: center; padding: 6px 10px; background: var(--panel);
+  border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.bar .grp { display: flex; gap: 4px; align-items: center; padding-right: 8px; margin-right: 2px;
+  border-right: 1px solid var(--line); }
+.bar .grp:last-child { border-right: 0; }
+#canvasWrap { position: relative; flex: 1; min-height: 240px; }
+#editor { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; }
+#hint { position: absolute; left: 12px; bottom: 10px; color: var(--muted); pointer-events: none; font-size: 12px; }
+#bottom { padding: 6px 10px; background: var(--panel); border-top: 1px solid var(--line); }
+#segPanel { display: none; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+#segPanel.show { display: flex; }
+#right { overflow-y: auto; padding: 10px 12px 30px; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+section h2 { font-size: 13px; margin: 0 0 8px; color: var(--accent); font-weight: 600; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+.row label { min-width: 0; }
+#preview { width: 100%; image-rendering: pixelated; background: #000; border-radius: 4px; display: block; }
+#melody { font-family: ui-monospace, Consolas, monospace; font-size: 12px; line-height: 1.7; word-break: break-word; }
+#melody span { padding: 0 2px; border-radius: 3px; }
+#melody span.rest { color: #5c6577; }
+#melody span.bad { color: var(--err); }
+#melody span.cur { background: var(--accent); color: #000; }
+#status { font-size: 12px; margin: 6px 0; }
+.ok { color: var(--ok); } .warn { color: var(--warn); } .err { color: var(--err); }
+table { border-collapse: collapse; width: 100%; font-size: 12px; }
+th, td { text-align: right; padding: 2px 6px; border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: left; }
+.legend { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; vertical-align: middle; }
+#modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 10; }
+#modal.show { display: flex; }
+#modal .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; width: min(760px, 94vw); }
+#modal textarea { height: 300px; }
+#dlg { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: center; justify-content: center; z-index: 20; }
+#dlg.show { display: flex; }
+#dlg .box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; width: min(460px, 92vw); }
+#dlg p { margin: 0 0 12px; }
+.small { font-size: 12px; color: var(--muted); }
+details summary { cursor: pointer; color: var(--muted); }
+@media (max-width: 1000px) {
+  main { grid-template-columns: 1fr; height: auto; }
+  #left { height: 75vh; border-right: 0; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌱 <span data-i18n="app.title">Flora-Pflanzen-Editor</span></h1>
+  <button id="btnNew" data-i18n="btn.new" data-i18n-title="btn.new.t">Neu</button>
+  <button id="btnOpen" data-i18n="btn.open" data-i18n-title="btn.open.t">Öffnen…</button>
+  <input id="fileInput" type="file" accept=".flora,.lua,.txt" hidden>
+  <select id="exampleSel" data-i18n-title="ex.choose"><option value="" data-i18n="ex.choose">Beispiel laden…</option></select>
+  <button id="btnSave" data-i18n="btn.save" data-i18n-title="btn.save.t">Speichern (.flora)</button>
+  <button id="btnUndo" data-i18n-title="btn.undo.t">↶</button>
+  <button id="btnRedo" data-i18n-title="btn.redo.t">↷</button>
+  <span class="sp"></span>
+  <label for="langSel" title="Sprache / Language / Idioma / Langue">🌐</label>
+  <select id="langSel" data-i18n-title="lang.t">
+    <option value="de">Deutsch</option><option value="en">English</option>
+    <option value="es">Español</option><option value="fr">Français</option>
+  </select>
+  <button id="btnHelp" data-i18n="btn.help">Hilfe</button>
+</header>
+<main>
+  <div id="left">
+    <div class="bar">
+      <div class="grp" id="tools">
+        <button data-tool="draw" class="on" data-i18n="tool.draw" data-i18n-title="tool.draw.t">✏️ Zeichnen</button>
+        <button data-tool="select" data-i18n="tool.select" data-i18n-title="tool.select.t">↖ Auswählen</button>
+        <button data-tool="paint" data-i18n="tool.paint" data-i18n-title="tool.paint.t">🖌 Übertragen</button>
+        <button data-tool="erase" data-i18n="tool.erase" data-i18n-title="tool.erase.t">⌫ Radieren</button>
+      </div>
+      <div class="grp" id="types">
+        <button data-type="F" class="on" data-i18n="type.F" data-i18n-title="type.F.t">♪ Ton</button>
+        <button data-type="G" data-i18n="type.G" data-i18n-title="type.G.t">— Linie</button>
+        <button data-type="f" data-i18n="type.f" data-i18n-title="type.f.t">┄ Sprung</button>
+      </div>
+      <div class="grp">
+        <label for="curGen" data-i18n="lbl.gen">Generation</label>
+        <input id="curGen" type="number" min="0" max="30" value="0">
+      </div>
+      <div class="grp">
+        <label for="angleSel" data-i18n="lbl.angle">Winkel</label>
+        <select id="angleSel"><option>30</option><option>45</option><option selected>60</option><option>90</option></select>
+        <label for="symSel" data-i18n="lbl.sym">Symmetrie</label>
+        <select id="symSel"></select>
+        <label data-i18n-title="lbl.mirror.t"><input id="mirrorChk" type="checkbox"> <span data-i18n="lbl.mirror">Spiegeln</span></label>
+        <label data-i18n-title="lbl.mirrorPitch.t"><input id="mirrorPitchChk" type="checkbox" checked> <span data-i18n="lbl.mirrorPitch">gleiche Töne</span></label>
+      </div>
+      <div class="grp">
+        <label><input id="gridChk" type="checkbox" checked> <span data-i18n="lbl.grid">Raster</span></label>
+        <label><input id="pitchChk" type="checkbox" checked> <span data-i18n="lbl.pitches">Tonhöhen</span></label>
+        <button id="btnCenter" data-i18n-title="btn.center.t">⌖</button>
+      </div>
+    </div>
+    <div id="canvasWrap">
+      <canvas id="editor"></canvas>
+      <div id="hint"></div>
+    </div>
+    <div id="bottom">
+      <div class="row" style="margin:0">
+        <label for="viewGen" data-i18n="lbl.viewGen">Ansicht bis Generation</label>
+        <input id="viewGen" type="range" min="0" max="0" value="0" style="flex:1;min-width:120px">
+        <span id="viewGenLbl">0</span>
+        <span class="legend" id="legend"></span>
+      </div>
+      <div id="segPanel">
+        <b data-i18n="seg.title">Linie:</b>
+        <button data-st="F" data-i18n="type.F">♪ Ton</button><button data-st="G" data-i18n="type.G">— Linie</button><button data-st="f" data-i18n="type.f">┄ Sprung</button>
+        <label><span data-i18n="lbl.gen">Generation</span> <input id="segGen" type="number" min="0" max="30"></label>
+        <label data-i18n-title="seg.fixed.t"><input id="segPitchChk" type="checkbox"> <span data-i18n="seg.fixed">feste Tonhöhe</span></label>
+        <input id="segPitch" type="number" min="1" max="24">
+        <span id="segInfo" class="small"></span>
+        <button id="segDel" data-i18n="seg.delete">Löschen</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="right">
+    <section>
+      <h2 data-i18n="sec.preview">Vorschau (norns, 128 × 64)</h2>
+      <canvas id="preview" width="640" height="320"></canvas>
+      <div class="row" style="margin-top:6px">
+        <button id="btnFit" data-i18n="btn.fit" data-i18n-title="btn.fit.t">Einpassen</button>
+        <label><input id="plant2Chk" type="checkbox" checked> <span data-i18n="lbl.plant2">Pflanze 2 (gedimmt) zeigen</span></label>
+      </div>
+    </section>
+
+    <section>
+      <h2 data-i18n="sec.sound">Klang</h2>
+      <div class="row">
+        <button id="btnPlay" data-i18n="btn.play">▶ Abspielen</button>
+        <button id="btnStop" data-i18n="btn.stop">■ Stopp</button>
+        <label><input id="loopChk" type="checkbox"> <span data-i18n="lbl.loop">Schleife</span></label>
+        <label><span data-i18n="lbl.noteMs">Notenlänge</span> <input id="noteMs" type="number" min="40" max="2000" step="10" value="250"> ms</label>
+      </div>
+      <div class="row">
+        <label><span data-i18n="lbl.scale">Tonleiter</span> <select id="scaleSel"></select></label>
+        <label><span data-i18n="lbl.root">Grundton</span> <input id="rootNote" type="number" min="0" max="127" value="45"></label>
+        <label data-i18n-title="lbl.ns.t">Note scalar <input id="noteScalar" type="number" min="0" max="20" step="0.1" value="3"></label>
+      </div>
+      <div id="melody"></div>
+      <p class="small" data-i18n="sound.note">Tonhöhen als Stufe 1–24 der Tonleiter, „·“ = Pause. Der Klang ist eine Annäherung an Floras Engine.</p>
+    </section>
+
+    <section>
+      <h2>Code</h2>
+      <div id="status"></div>
+      <div class="row">
+        <label><span data-i18n="lbl.name">Name</span> <input id="plantName" type="text" value="neue_pflanze" style="width:170px"></label>
+      </div>
+      <div class="row">
+        <label><span data-i18n="lbl.angle">Winkel</span> <input id="cAngle" type="number" step="any"></label>
+        <label><span data-i18n="lbl.length">Schrittlänge</span> <input id="cLength" type="number" step="0.1"></label>
+        <label><span data-i18n="lbl.rot">Startrichtung</span> <input id="cRot" type="number" step="any"></label>
+      </div>
+      <div class="row">
+        <label>Start x <input id="cX" type="number" step="0.5"></label>
+        <label>Start y <input id="cY" type="number" step="0.5"></label>
+        <label><span data-i18n="lbl.maxgen">Max. Gen.</span> <input id="cMax" type="number" min="1" max="30"></label>
+        <label><span data-i18n="lbl.startgen">Startgen.</span> <input id="cStart" type="number" min="0" max="30"></label>
+      </div>
+      <label for="cAxiom" data-i18n="lbl.axiom">Axiom</label>
+      <textarea id="cAxiom" rows="3" spellcheck="false"></textarea>
+      <label for="cRules" data-i18n-html="lbl.rules">Regeln (eine pro Zeile: <code>A = …</code>)</label>
+      <textarea id="cRules" rows="6" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:6px">
+        <button id="btnToDrawing" data-i18n="btn.toDrawing" data-i18n-title="btn.toDrawing.t">Zeichnung aus Code aufbauen</button>
+        <button id="btnRecompile" data-i18n="btn.recompile" data-i18n-title="btn.recompile.t">Code aus Zeichnung erzeugen</button>
+      </div>
+      <details style="margin-top:8px" open>
+        <summary data-i18n="lbl.gens">Generationen</summary>
+        <table id="genTable"></table>
+      </details>
+    </section>
+
+    <section>
+      <h2 data-i18n="sec.export">Export</h2>
+      <div class="row">
+        <button id="btnSave2" data-i18n="btn.save2">.flora speichern</button>
+        <button id="btnMaiden" data-i18n="btn.maiden">maiden-Befehl</button>
+        <button id="btnCatalog" data-i18n="btn.catalog">Katalog-Eintrag</button>
+      </div>
+      <p class="small" data-i18n-html="export.note"></p>
+    </section>
+  </div>
+</main>
+
+<div id="modal"><div class="box">
+  <h2 id="modalTitle" style="margin:0 0 8px;font-size:14px"></h2>
+  <div id="modalBody"></div>
+  <div class="row" style="justify-content:flex-end;margin-top:8px">
+    <button id="modalCopy" data-i18n="btn.copy">Kopieren</button>
+    <button id="modalClose" data-i18n="btn.close">Schließen</button>
+  </div>
+</div></div>
+
+<div id="dlg"><div class="box" role="dialog" aria-modal="true">
+  <p id="dlgText"></p>
+  <div class="row" style="justify-content:flex-end;margin:0">
+    <button id="dlgCancel" data-i18n="btn.cancel">Abbrechen</button>
+    <button id="dlgOk" class="on">OK</button>
+  </div>
+</div></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   Sprachen
+   ===================================================================== */
+const I18N = {
+  de: {
+    'app.title': 'Flora-Pflanzen-Editor', 'lang.t': 'Sprache',
+    'btn.new': 'Neu', 'btn.new.t': 'Neue, leere Pflanze', 'btn.open': 'Öffnen…', 'btn.open.t': '.flora-Datei laden',
+    'ex.choose': 'Beispiel laden…', 'btn.save': 'Speichern (.flora)', 'btn.save.t': 'Als .flora-Datei speichern',
+    'btn.undo.t': 'Rückgängig (Strg+Z)', 'btn.redo.t': 'Wiederholen (Strg+Y)', 'btn.help': 'Hilfe',
+    'tool.draw': '✏️ Zeichnen', 'tool.draw.t': 'Linien ziehen (D)', 'tool.select': '↖ Auswählen', 'tool.select.t': 'Linie auswählen und bearbeiten (S)',
+    'tool.paint': '🖌 Übertragen', 'tool.paint.t': 'Typ und Generation auf Linien übertragen (P)', 'tool.erase': '⌫ Radieren', 'tool.erase.t': 'Linien löschen (E)',
+    'type.F': '♪ Ton', 'type.F.t': 'Linie mit Ton (F)', 'type.G': '— Linie', 'type.G.t': 'Linie ohne Ton, Pause (G)', 'type.f': '┄ Sprung', 'type.f.t': 'Unsichtbarer Sprung (f)',
+    'lbl.gen': 'Generation', 'lbl.angle': 'Winkel', 'lbl.sym': 'Symmetrie', 'lbl.mirror': 'Spiegeln', 'lbl.mirror.t': 'Neue Linien an der senkrechten Achse spiegeln', 'lbl.mirrorPitch': 'gleiche Töne', 'lbl.mirrorPitch.t': 'Gespiegelte Linien spielen dieselben Töne wie ihr Original',
+    'lbl.grid': 'Raster', 'lbl.pitches': 'Tonhöhen', 'btn.center.t': 'Ansicht zentrieren', 'lbl.viewGen': 'Ansicht bis Generation',
+    'seg.title': 'Linie:', 'seg.fixed': 'feste Tonhöhe', 'seg.fixed.t': 'Feste Tonhöhe (Stufe 1–24) statt der automatisch entstehenden', 'seg.delete': 'Löschen',
+    'seg.now': 'Ton jetzt: Stufe {n}', 'seg.eff': ' · erscheint tatsächlich in Gen. {g}',
+    'sec.preview': 'Vorschau (norns, 128 × 64)', 'btn.fit': 'Einpassen', 'btn.fit.t': 'Schrittlänge und Startpunkt so wählen, dass die Pflanze ins Bild passt',
+    'lbl.plant2': 'Pflanze 2 (gedimmt) zeigen', 'sec.sound': 'Klang', 'btn.play': '▶ Abspielen', 'btn.stop': '■ Stopp', 'lbl.loop': 'Schleife',
+    'lbl.noteMs': 'Notenlänge', 'lbl.scale': 'Tonleiter', 'lbl.root': 'Grundton', 'lbl.ns.t': 'Floras Parameter „note scalar“ (Standard 3)',
+    'sound.note': 'Tonhöhen als Stufe 1–24 der Tonleiter, „·“ = Pause. Der Klang ist eine Annäherung an Floras Engine.',
+    'mel.none': 'Keine Töne – setze Linien vom Typ „Ton“.', 'mel.mute': 'stumm',
+    'lbl.name': 'Name', 'lbl.length': 'Schrittlänge', 'lbl.rot': 'Startrichtung', 'lbl.maxgen': 'Max. Gen.', 'lbl.startgen': 'Startgen.', 'lbl.axiom': 'Axiom',
+    'lbl.rules': 'Regeln (eine pro Zeile: <code>A = …</code>)', 'btn.toDrawing': 'Zeichnung aus Code aufbauen', 'btn.toDrawing.t': 'Zeichnung aus dem Code neu aufbauen',
+    'btn.recompile': 'Code aus Zeichnung erzeugen', 'btn.recompile.t': 'Code neu aus der Zeichnung erzeugen', 'lbl.gens': 'Generationen',
+    'tbl.gen': 'Gen.', 'tbl.chars': 'Zeichen', 'tbl.notes': 'Töne', 'tbl.rests': 'Pausen', 'tbl.start': '(Start)', 'tbl.cut': 'gekürzt', 'tbl.tight': 'knapp',
+    'sec.export': 'Export', 'btn.save2': '.flora speichern', 'btn.maiden': 'maiden-Befehl', 'btn.catalog': 'Katalog-Eintrag',
+    'export.note': 'Die <code>.flora</code>-Datei kommt auf dem norns nach <code>dust/data/flora/nursery/</code>, dann in Flora: K1 → PARAMETERS → EDIT → GARDENING → <b>ADD PLANT TO GARDEN</b>. Der maiden-Befehl legt die Datei direkt an (in die maiden-REPL einfügen).',
+    'btn.copy': 'Kopieren', 'btn.copied': 'Kopiert ✓', 'btn.close': 'Schließen', 'btn.cancel': 'Abbrechen',
+    'sym.none': 'keine', 'sym.n': '{n}-fach',
+    'st.auto': 'Code wird automatisch aus der Zeichnung erzeugt.',
+    'st.file': 'Code aus einer Datei ohne Zeichnungsdaten geladen. Die Zeichnung wurde aus dem Code aufgebaut; der Code bleibt unverändert, bis du die Zeichnung änderst.',
+    'st.mismatch': 'Der Code in der Datei passt nicht mehr zur mitgespeicherten Zeichnung (z. B. außerhalb des Editors geändert). Der Code bleibt unverändert, bis du die Zeichnung änderst.',
+    'st.edit': 'Code wurde von Hand bearbeitet – die Zeichnung ist nicht mehr damit verknüpft.',
+    'st.cut': '⚠ Mindestens eine Generation ist länger als {max} Zeichen – Flora schneidet den Rest ab.',
+    'st.range': '⚠ Manche Töne liegen außerhalb der Stufen 1–24; Flora springt dann ans andere Ende der Tonleiter.',
+    'st.bang': '„!“ ohne drei Ziffern erzeugt in Flora einen Zufallswinkel (hier nicht simuliert).',
+    'st.rule': 'Regel „{k}“: nur ein einzelner Buchstabe, der kein Turtle-Zeichen ist, ist erlaubt.',
+    'st.last': 'Letzte Generation: {len} / {max} Zeichen, {n} Töne.',
+    'w.unreached': '{n} Linie(n) sind nicht mit dem Startpunkt verbunden und fehlen im Code. Verbinde sie (notfalls mit einem unsichtbaren Sprung).',
+    'w.mirrorCheap': 'Damit der Code unter {max} Zeichen bleibt, spielen manche Spiegelpaare einen gemeinsamen Ton, der vom Original abweicht.',
+    'w.mirrorOff': 'Gleiche Töne für Spiegelbilder würden den Code länger als {max} Zeichen machen – sie wurden nicht angeglichen.',
+    'err.letters': 'Zu viele verschiedene Wachstumsteile – nicht genug Hilfsbuchstaben.',
+    'err.noplant': 'Keine Flora-Pflanze gefunden (axiom fehlt).',
+    'notice.vanished': 'Hinweis: In diesem Code verschwinden beim Wachsen Linien wieder (z. B. wandernde Spitzen). Die Zeichnung enthält nur die Endform; aus ihr erzeugter Code wächst etwas anders.',
+    'hint.empty': 'Ziehe vom roten Startpunkt aus eine Linie. Mausrad = Zoom, rechte Maustaste = verschieben.',
+    'hint.manual': 'Code ist nicht verknüpft – Änderungen an der Zeichnung erzeugen den Code neu.',
+    'drag.step': '{n} Schritt', 'drag.steps': '{n} Schritte',
+    'ask.change': 'Der Code ist nicht mit der Zeichnung verknüpft. Wenn du die Zeichnung änderst, wird der Code neu daraus erzeugt und der bisherige Code geht verloren.', 'ok.change': 'Zeichnung ändern',
+    'ask.angle': 'Beim Wechsel des Winkels passt die Zeichnung nicht mehr aufs Raster und wird gelöscht. (Rückgängig mit ↶ möglich.)', 'ok.angle': 'Winkel ändern',
+    'ask.recompile': 'Den Code neu aus der Zeichnung erzeugen? Der bisherige Code geht verloren.', 'ok.recompile': 'Code erzeugen',
+    'info.angles': 'Zeichnen geht nur mit den Winkeln 30°, 45°, 60° oder 90°.',
+    'ask.replace': 'Die Zeichnung wird durch die Linien aus dem Code ersetzt (ohne Symmetrie und ohne feste Tonhöhen).', 'ok.replace': 'Ersetzen',
+    'info.noaudio': 'Dieser Browser kann keinen Klang ausgeben.', 'info.readerr': 'Datei konnte nicht gelesen werden: {msg}',
+    'ask.new': 'Neue, leere Pflanze beginnen? Die aktuelle ist danach nur noch über ↶ (Rückgängig) erreichbar, wenn du sie nicht gespeichert hast.', 'ok.new': 'Neu beginnen',
+    'ok.continue': 'Fortfahren', 'modal.maiden': 'maiden-Befehl (in die maiden-REPL einfügen)', 'modal.catalog': 'Eintrag für lib/gardens/garden_catalog_default.lua', 'modal.help': 'Hilfe',
+    'default.name': 'neue_pflanze',
+    'scale.1': 'Dur', 'scale.2': 'Natürliches Moll', 'scale.3': 'Harmonisches Moll', 'scale.4': 'Melodisches Moll', 'scale.5': 'Dorisch', 'scale.6': 'Phrygisch',
+    'scale.7': 'Lydisch', 'scale.8': 'Mixolydisch', 'scale.9': 'Lokrisch', 'scale.10': 'Ganzton', 'scale.11': 'Dur-Pentatonik', 'scale.12': 'Moll-Pentatonik',
+    'help': `<p><b>Zeichnen:</b> Mit ✏️ ziehst du vom roten Startpunkt oder von einem Knoten aus eine Linie. Sie rastet in die erlaubten Richtungen des Winkels ein und wird in Schritte zerlegt. <b>Symmetrie</b> vervielfacht alles um den Startpunkt, <b>Spiegeln</b> legt jede neue Linie gespiegelt an der senkrechten Achse an. Symmetrie-Kopien klingen immer wie das Original, mit <b>gleiche Töne</b> auch die Spiegelbilder.</p>
+<p><b>Linientypen:</b> ♪ <i>Ton</i> (F) zeichnet und spielt einen Ton, — <i>Linie</i> (G) zeichnet mit einer Pause, ┄ <i>Sprung</i> (f) bewegt sich unsichtbar (z. B. vom Mittelpunkt zu einem Ring).</p>
+<p><b>Wachstum:</b> Jede Linie hat eine <b>Generation</b> (Farbe). Generation 0 ist sofort da, höhere wachsen nacheinander dazu. Neue Linien bekommen die Generation aus der Werkzeugleiste. Mit 🖌 überträgst du Typ und Generation auf vorhandene Linien. Der Regler „Ansicht bis Generation“ zeigt das Wachstum.</p>
+<p><b>Melodie:</b> Die Zahlen an den Ton-Linien sind die Tonhöhen (Stufe 1–24), die Flora spielen würde. Mit ↖ eine Ton-Linie wählen und <b>feste Tonhöhe</b> setzen: der Code bekommt dann formneutrale Zeichen (<code>[]</code>, <code>+-</code>, <code>|---</code>), die genau diese Stufe einstellen.</p>
+<p><b>Code:</b> Axiom und Regeln entstehen automatisch. Du kannst sie auch von Hand ändern – dann ist die Zeichnung nicht mehr verknüpft. „Zeichnung aus Code aufbauen“ übernimmt die Linien eines Codes (z. B. eines Beispiels) in die Zeichnung. Beim Speichern kommt die Zeichnung als Kommentar mit in die <code>.flora</code>-Datei.</p>
+<p><b>Floras Regeln, die hier nachgebildet sind:</b> Jede Generation wird auf {max} Zeichen gekürzt. <code>+</code>/<code>-</code> ändern die Tonhöhe um <code>ceil(note scalar × Winkel im Bogenmaß)</code>, <code>]</code> setzt sie auf Stufe 12 zurück.</p>
+<p><b>Tasten:</b> D/S/P/E Werkzeuge · 1/2/3 Linientyp · Entf löscht die gewählte Linie · Strg+Z/Strg+Y · Leertaste spielt ab · Mausrad zoomt · rechte Maustaste verschiebt.</p>`,
+  },
+  en: {
+    'app.title': 'Flora Plant Editor', 'lang.t': 'Language',
+    'btn.new': 'New', 'btn.new.t': 'New, empty plant', 'btn.open': 'Open…', 'btn.open.t': 'Load a .flora file',
+    'ex.choose': 'Load example…', 'btn.save': 'Save (.flora)', 'btn.save.t': 'Save as .flora file',
+    'btn.undo.t': 'Undo (Ctrl+Z)', 'btn.redo.t': 'Redo (Ctrl+Y)', 'btn.help': 'Help',
+    'tool.draw': '✏️ Draw', 'tool.draw.t': 'Drag lines (D)', 'tool.select': '↖ Select', 'tool.select.t': 'Select and edit a line (S)',
+    'tool.paint': '🖌 Apply', 'tool.paint.t': 'Apply type and generation to lines (P)', 'tool.erase': '⌫ Erase', 'tool.erase.t': 'Delete lines (E)',
+    'type.F': '♪ Note', 'type.F.t': 'Line with a note (F)', 'type.G': '— Line', 'type.G.t': 'Line without a note, rest (G)', 'type.f': '┄ Jump', 'type.f.t': 'Invisible jump (f)',
+    'lbl.gen': 'Generation', 'lbl.angle': 'Angle', 'lbl.sym': 'Symmetry', 'lbl.mirror': 'Mirror', 'lbl.mirror.t': 'Mirror new lines across the vertical axis', 'lbl.mirrorPitch': 'same notes', 'lbl.mirrorPitch.t': 'Mirrored lines play the same notes as their original',
+    'lbl.grid': 'Grid', 'lbl.pitches': 'Pitches', 'btn.center.t': 'Center view', 'lbl.viewGen': 'Show up to generation',
+    'seg.title': 'Line:', 'seg.fixed': 'fixed pitch', 'seg.fixed.t': 'Fixed pitch (step 1–24) instead of the automatic one', 'seg.delete': 'Delete',
+    'seg.now': 'Note now: step {n}', 'seg.eff': ' · actually appears in gen. {g}',
+    'sec.preview': 'Preview (norns, 128 × 64)', 'btn.fit': 'Fit', 'btn.fit.t': 'Choose step length and start point so the plant fits the screen',
+    'lbl.plant2': 'Show plant 2 (dimmed)', 'sec.sound': 'Sound', 'btn.play': '▶ Play', 'btn.stop': '■ Stop', 'lbl.loop': 'Loop',
+    'lbl.noteMs': 'Note length', 'lbl.scale': 'Scale', 'lbl.root': 'Root note', 'lbl.ns.t': 'Flora\'s "note scalar" parameter (default 3)',
+    'sound.note': 'Pitches as scale steps 1–24, "·" = rest. The sound only approximates Flora\'s engine.',
+    'mel.none': 'No notes – add lines of type "Note".', 'mel.mute': 'silent',
+    'lbl.name': 'Name', 'lbl.length': 'Step length', 'lbl.rot': 'Start direction', 'lbl.maxgen': 'Max. gen.', 'lbl.startgen': 'Start gen.', 'lbl.axiom': 'Axiom',
+    'lbl.rules': 'Rules (one per line: <code>A = …</code>)', 'btn.toDrawing': 'Build drawing from code', 'btn.toDrawing.t': 'Rebuild the drawing from the code',
+    'btn.recompile': 'Generate code from drawing', 'btn.recompile.t': 'Regenerate the code from the drawing', 'lbl.gens': 'Generations',
+    'tbl.gen': 'Gen.', 'tbl.chars': 'Characters', 'tbl.notes': 'Notes', 'tbl.rests': 'Rests', 'tbl.start': '(start)', 'tbl.cut': 'truncated', 'tbl.tight': 'close',
+    'sec.export': 'Export', 'btn.save2': 'Save .flora', 'btn.maiden': 'maiden command', 'btn.catalog': 'Catalog entry',
+    'export.note': 'On the norns, the <code>.flora</code> file goes into <code>dust/data/flora/nursery/</code>. Then in Flora: K1 → PARAMETERS → EDIT → GARDENING → <b>ADD PLANT TO GARDEN</b>. The maiden command creates the file directly (paste it into the maiden REPL).',
+    'btn.copy': 'Copy', 'btn.copied': 'Copied ✓', 'btn.close': 'Close', 'btn.cancel': 'Cancel',
+    'sym.none': 'none', 'sym.n': '{n}-fold',
+    'st.auto': 'The code is generated automatically from the drawing.',
+    'st.file': 'Code loaded from a file without drawing data. The drawing was rebuilt from the code; the code stays unchanged until you change the drawing.',
+    'st.mismatch': 'The code in the file no longer matches the drawing saved with it (e.g. edited outside the editor). The code stays unchanged until you change the drawing.',
+    'st.edit': 'The code was edited by hand – the drawing is no longer linked to it.',
+    'st.cut': '⚠ At least one generation is longer than {max} characters – Flora cuts off the rest.',
+    'st.range': '⚠ Some notes are outside steps 1–24; Flora then jumps to the other end of the scale.',
+    'st.bang': '"!" without three digits makes Flora use a random angle (not simulated here).',
+    'st.rule': 'Rule "{k}": only a single letter that is not a turtle symbol is allowed.',
+    'st.last': 'Last generation: {len} / {max} characters, {n} notes.',
+    'w.unreached': '{n} line(s) are not connected to the start point and are missing from the code. Connect them (with an invisible jump if needed).',
+    'w.mirrorCheap': 'To keep the code under {max} characters, some mirror pairs share a note that differs from the original.',
+    'w.mirrorOff': 'Same notes for mirror images would make the code longer than {max} characters – they were not aligned.',
+    'err.letters': 'Too many different growth parts – not enough helper letters.',
+    'err.noplant': 'No Flora plant found (axiom missing).',
+    'notice.vanished': 'Note: in this code some lines disappear again while growing (e.g. moving tips). The drawing only contains the final shape; code generated from it grows a little differently.',
+    'hint.empty': 'Drag a line from the red start point. Mouse wheel = zoom, right mouse button = pan.',
+    'hint.manual': 'The code is not linked – changing the drawing regenerates the code.',
+    'drag.step': '{n} step', 'drag.steps': '{n} steps',
+    'ask.change': 'The code is not linked to the drawing. If you change the drawing, the code is regenerated from it and the current code is lost.', 'ok.change': 'Change drawing',
+    'ask.angle': 'After changing the angle the drawing no longer fits the grid and will be deleted. (You can undo with ↶.)', 'ok.angle': 'Change angle',
+    'ask.recompile': 'Regenerate the code from the drawing? The current code will be lost.', 'ok.recompile': 'Generate code',
+    'info.angles': 'Drawing only works with angles of 30°, 45°, 60° or 90°.',
+    'ask.replace': 'The drawing will be replaced by the lines from the code (without symmetry and without fixed pitches).', 'ok.replace': 'Replace',
+    'info.noaudio': 'This browser cannot play sound.', 'info.readerr': 'The file could not be read: {msg}',
+    'ask.new': 'Start a new, empty plant? If you have not saved the current one, you can only get it back with ↶ (Undo).', 'ok.new': 'Start new',
+    'ok.continue': 'Continue', 'modal.maiden': 'maiden command (paste into the maiden REPL)', 'modal.catalog': 'Entry for lib/gardens/garden_catalog_default.lua', 'modal.help': 'Help',
+    'default.name': 'new_plant',
+    'scale.1': 'Major', 'scale.2': 'Natural minor', 'scale.3': 'Harmonic minor', 'scale.4': 'Melodic minor', 'scale.5': 'Dorian', 'scale.6': 'Phrygian',
+    'scale.7': 'Lydian', 'scale.8': 'Mixolydian', 'scale.9': 'Locrian', 'scale.10': 'Whole tone', 'scale.11': 'Major pentatonic', 'scale.12': 'Minor pentatonic',
+    'help': `<p><b>Drawing:</b> With ✏️ you drag a line from the red start point or from a node. It snaps to the directions allowed by the angle and is split into steps. <b>Symmetry</b> repeats everything around the start point, <b>Mirror</b> adds every new line mirrored across the vertical axis. Symmetry copies always sound like the original; with <b>same notes</b>, mirror images do too.</p>
+<p><b>Line types:</b> ♪ <i>Note</i> (F) draws and plays a note, — <i>Line</i> (G) draws with a rest, ┄ <i>Jump</i> (f) moves invisibly (e.g. from the centre to a ring).</p>
+<p><b>Growth:</b> Every line has a <b>generation</b> (colour). Generation 0 is there right away, higher ones grow in one after another. New lines get the generation from the toolbar. With 🖌 you apply type and generation to existing lines. The "Show up to generation" slider shows the growth.</p>
+<p><b>Melody:</b> The numbers on note lines are the pitches (step 1–24) Flora would play. Select a note line with ↖ and set a <b>fixed pitch</b>: the code then gets shape-neutral symbols (<code>[]</code>, <code>+-</code>, <code>|---</code>) that set exactly that step.</p>
+<p><b>Code:</b> Axiom and rules are generated automatically. You can also edit them by hand – then the drawing is no longer linked. "Build drawing from code" takes the lines of a code (e.g. an example) into the drawing. When you save, the drawing is stored as a comment in the <code>.flora</code> file.</p>
+<p><b>Flora rules simulated here:</b> Every generation is cut to {max} characters. <code>+</code>/<code>-</code> change the pitch by <code>ceil(note scalar × angle in radians)</code>, <code>]</code> resets it to step 12.</p>
+<p><b>Keys:</b> D/S/P/E tools · 1/2/3 line type · Del deletes the selected line · Ctrl+Z/Ctrl+Y · Space plays · mouse wheel zooms · right mouse button pans.</p>`,
+  },
+  es: {
+    'app.title': 'Editor de plantas Flora', 'lang.t': 'Idioma',
+    'btn.new': 'Nuevo', 'btn.new.t': 'Nueva planta vacía', 'btn.open': 'Abrir…', 'btn.open.t': 'Cargar un archivo .flora',
+    'ex.choose': 'Cargar ejemplo…', 'btn.save': 'Guardar (.flora)', 'btn.save.t': 'Guardar como archivo .flora',
+    'btn.undo.t': 'Deshacer (Ctrl+Z)', 'btn.redo.t': 'Rehacer (Ctrl+Y)', 'btn.help': 'Ayuda',
+    'tool.draw': '✏️ Dibujar', 'tool.draw.t': 'Trazar líneas (D)', 'tool.select': '↖ Seleccionar', 'tool.select.t': 'Seleccionar y editar una línea (S)',
+    'tool.paint': '🖌 Aplicar', 'tool.paint.t': 'Aplicar tipo y generación a las líneas (P)', 'tool.erase': '⌫ Borrar', 'tool.erase.t': 'Borrar líneas (E)',
+    'type.F': '♪ Nota', 'type.F.t': 'Línea con nota (F)', 'type.G': '— Línea', 'type.G.t': 'Línea sin nota, silencio (G)', 'type.f': '┄ Salto', 'type.f.t': 'Salto invisible (f)',
+    'lbl.gen': 'Generación', 'lbl.angle': 'Ángulo', 'lbl.sym': 'Simetría', 'lbl.mirror': 'Espejo', 'lbl.mirror.t': 'Reflejar las líneas nuevas en el eje vertical', 'lbl.mirrorPitch': 'mismas notas', 'lbl.mirrorPitch.t': 'Las líneas reflejadas tocan las mismas notas que su original',
+    'lbl.grid': 'Cuadrícula', 'lbl.pitches': 'Alturas', 'btn.center.t': 'Centrar vista', 'lbl.viewGen': 'Mostrar hasta la generación',
+    'seg.title': 'Línea:', 'seg.fixed': 'altura fija', 'seg.fixed.t': 'Altura fija (grado 1–24) en lugar de la automática', 'seg.delete': 'Borrar',
+    'seg.now': 'Nota actual: grado {n}', 'seg.eff': ' · aparece realmente en la gen. {g}',
+    'sec.preview': 'Vista previa (norns, 128 × 64)', 'btn.fit': 'Ajustar', 'btn.fit.t': 'Elegir longitud de paso y punto de inicio para que la planta quepa en pantalla',
+    'lbl.plant2': 'Mostrar planta 2 (atenuada)', 'sec.sound': 'Sonido', 'btn.play': '▶ Reproducir', 'btn.stop': '■ Detener', 'lbl.loop': 'Bucle',
+    'lbl.noteMs': 'Duración de nota', 'lbl.scale': 'Escala', 'lbl.root': 'Nota base', 'lbl.ns.t': 'Parámetro «note scalar» de Flora (por defecto 3)',
+    'sound.note': 'Alturas como grados 1–24 de la escala, «·» = silencio. El sonido es solo una aproximación al motor de Flora.',
+    'mel.none': 'Sin notas: añade líneas de tipo «Nota».', 'mel.mute': 'mudo',
+    'lbl.name': 'Nombre', 'lbl.length': 'Longitud de paso', 'lbl.rot': 'Dirección inicial', 'lbl.maxgen': 'Gen. máx.', 'lbl.startgen': 'Gen. inicial', 'lbl.axiom': 'Axioma',
+    'lbl.rules': 'Reglas (una por línea: <code>A = …</code>)', 'btn.toDrawing': 'Construir dibujo desde el código', 'btn.toDrawing.t': 'Reconstruir el dibujo a partir del código',
+    'btn.recompile': 'Generar código desde el dibujo', 'btn.recompile.t': 'Regenerar el código a partir del dibujo', 'lbl.gens': 'Generaciones',
+    'tbl.gen': 'Gen.', 'tbl.chars': 'Caracteres', 'tbl.notes': 'Notas', 'tbl.rests': 'Silencios', 'tbl.start': '(inicio)', 'tbl.cut': 'recortada', 'tbl.tight': 'justo',
+    'sec.export': 'Exportar', 'btn.save2': 'Guardar .flora', 'btn.maiden': 'Comando maiden', 'btn.catalog': 'Entrada de catálogo',
+    'export.note': 'En el norns, el archivo <code>.flora</code> va en <code>dust/data/flora/nursery/</code>. Luego en Flora: K1 → PARAMETERS → EDIT → GARDENING → <b>ADD PLANT TO GARDEN</b>. El comando maiden crea el archivo directamente (pégalo en la REPL de maiden).',
+    'btn.copy': 'Copiar', 'btn.copied': 'Copiado ✓', 'btn.close': 'Cerrar', 'btn.cancel': 'Cancelar',
+    'sym.none': 'ninguna', 'sym.n': '{n} veces',
+    'st.auto': 'El código se genera automáticamente a partir del dibujo.',
+    'st.file': 'Código cargado de un archivo sin datos de dibujo. El dibujo se reconstruyó a partir del código; el código no cambia hasta que modifiques el dibujo.',
+    'st.mismatch': 'El código del archivo ya no coincide con el dibujo guardado con él (p. ej. editado fuera del editor). El código no cambia hasta que modifiques el dibujo.',
+    'st.edit': 'El código se editó a mano: el dibujo ya no está vinculado a él.',
+    'st.cut': '⚠ Al menos una generación tiene más de {max} caracteres: Flora recorta el resto.',
+    'st.range': '⚠ Algunas notas están fuera de los grados 1–24; Flora salta entonces al otro extremo de la escala.',
+    'st.bang': '«!» sin tres cifras hace que Flora use un ángulo aleatorio (no se simula aquí).',
+    'st.rule': 'Regla «{k}»: solo se permite una única letra que no sea un símbolo de la tortuga.',
+    'st.last': 'Última generación: {len} / {max} caracteres, {n} notas.',
+    'w.unreached': '{n} línea(s) no están conectadas con el punto de inicio y faltan en el código. Conéctalas (si hace falta, con un salto invisible).',
+    'w.mirrorCheap': 'Para que el código no supere los {max} caracteres, algunos pares reflejados comparten una nota distinta de la original.',
+    'w.mirrorOff': 'Igualar las notas de los reflejos haría el código más largo de {max} caracteres; no se han igualado.',
+    'err.letters': 'Demasiadas partes de crecimiento distintas: no hay suficientes letras auxiliares.',
+    'err.noplant': 'No se encontró ninguna planta Flora (falta el axioma).',
+    'notice.vanished': 'Nota: en este código algunas líneas vuelven a desaparecer al crecer (p. ej. puntas que avanzan). El dibujo solo contiene la forma final; el código generado a partir de él crece de forma algo distinta.',
+    'hint.empty': 'Traza una línea desde el punto de inicio rojo. Rueda del ratón = zoom, botón derecho = desplazar.',
+    'hint.manual': 'El código no está vinculado: al cambiar el dibujo se regenera el código.',
+    'drag.step': '{n} paso', 'drag.steps': '{n} pasos',
+    'ask.change': 'El código no está vinculado al dibujo. Si cambias el dibujo, el código se regenera a partir de él y el código actual se pierde.', 'ok.change': 'Cambiar dibujo',
+    'ask.angle': 'Al cambiar el ángulo, el dibujo ya no encaja en la cuadrícula y se borrará. (Se puede deshacer con ↶.)', 'ok.angle': 'Cambiar ángulo',
+    'ask.recompile': '¿Regenerar el código a partir del dibujo? El código actual se perderá.', 'ok.recompile': 'Generar código',
+    'info.angles': 'Solo se puede dibujar con ángulos de 30°, 45°, 60° o 90°.',
+    'ask.replace': 'El dibujo se sustituirá por las líneas del código (sin simetría y sin alturas fijas).', 'ok.replace': 'Sustituir',
+    'info.noaudio': 'Este navegador no puede reproducir sonido.', 'info.readerr': 'No se pudo leer el archivo: {msg}',
+    'ask.new': '¿Empezar una planta nueva y vacía? Si no has guardado la actual, solo podrás recuperarla con ↶ (Deshacer).', 'ok.new': 'Empezar de nuevo',
+    'ok.continue': 'Continuar', 'modal.maiden': 'Comando maiden (pégalo en la REPL de maiden)', 'modal.catalog': 'Entrada para lib/gardens/garden_catalog_default.lua', 'modal.help': 'Ayuda',
+    'default.name': 'nueva_planta',
+    'scale.1': 'Mayor', 'scale.2': 'Menor natural', 'scale.3': 'Menor armónica', 'scale.4': 'Menor melódica', 'scale.5': 'Dórica', 'scale.6': 'Frigia',
+    'scale.7': 'Lidia', 'scale.8': 'Mixolidia', 'scale.9': 'Locria', 'scale.10': 'Tonos enteros', 'scale.11': 'Pentatónica mayor', 'scale.12': 'Pentatónica menor',
+    'help': `<p><b>Dibujar:</b> Con ✏️ trazas una línea desde el punto de inicio rojo o desde un nodo. Se ajusta a las direcciones permitidas por el ángulo y se divide en pasos. <b>Simetría</b> repite todo alrededor del punto de inicio, <b>Espejo</b> añade cada línea nueva reflejada en el eje vertical. Las copias simétricas siempre suenan como el original; con <b>mismas notas</b>, también los reflejos.</p>
+<p><b>Tipos de línea:</b> ♪ <i>Nota</i> (F) dibuja y toca una nota, — <i>Línea</i> (G) dibuja con un silencio, ┄ <i>Salto</i> (f) se mueve de forma invisible (p. ej. del centro a un anillo).</p>
+<p><b>Crecimiento:</b> Cada línea tiene una <b>generación</b> (color). La generación 0 aparece enseguida; las superiores crecen una tras otra. Las líneas nuevas reciben la generación de la barra de herramientas. Con 🖌 aplicas tipo y generación a líneas existentes. El control «Mostrar hasta la generación» muestra el crecimiento.</p>
+<p><b>Melodía:</b> Los números en las líneas de nota son las alturas (grado 1–24) que tocaría Flora. Selecciona una línea de nota con ↖ y fija una <b>altura fija</b>: el código recibe entonces símbolos que no cambian la forma (<code>[]</code>, <code>+-</code>, <code>|---</code>) y fijan exactamente ese grado.</p>
+<p><b>Código:</b> El axioma y las reglas se generan automáticamente. También puedes editarlos a mano; entonces el dibujo deja de estar vinculado. «Construir dibujo desde el código» pasa las líneas de un código (p. ej. un ejemplo) al dibujo. Al guardar, el dibujo se guarda como comentario en el archivo <code>.flora</code>.</p>
+<p><b>Reglas de Flora simuladas aquí:</b> Cada generación se recorta a {max} caracteres. <code>+</code>/<code>-</code> cambian la altura en <code>ceil(note scalar × ángulo en radianes)</code>, <code>]</code> la devuelve al grado 12.</p>
+<p><b>Teclas:</b> D/S/P/E herramientas · 1/2/3 tipo de línea · Supr borra la línea seleccionada · Ctrl+Z/Ctrl+Y · Espacio reproduce · rueda del ratón = zoom · botón derecho = desplazar.</p>`,
+  },
+  fr: {
+    'app.title': 'Éditeur de plantes Flora', 'lang.t': 'Langue',
+    'btn.new': 'Nouveau', 'btn.new.t': 'Nouvelle plante vide', 'btn.open': 'Ouvrir…', 'btn.open.t': 'Charger un fichier .flora',
+    'ex.choose': 'Charger un exemple…', 'btn.save': 'Enregistrer (.flora)', 'btn.save.t': 'Enregistrer comme fichier .flora',
+    'btn.undo.t': 'Annuler (Ctrl+Z)', 'btn.redo.t': 'Rétablir (Ctrl+Y)', 'btn.help': 'Aide',
+    'tool.draw': '✏️ Dessiner', 'tool.draw.t': 'Tracer des lignes (D)', 'tool.select': '↖ Sélectionner', 'tool.select.t': 'Sélectionner et modifier une ligne (S)',
+    'tool.paint': '🖌 Appliquer', 'tool.paint.t': 'Appliquer type et génération aux lignes (P)', 'tool.erase': '⌫ Effacer', 'tool.erase.t': 'Supprimer des lignes (E)',
+    'type.F': '♪ Note', 'type.F.t': 'Ligne avec note (F)', 'type.G': '— Ligne', 'type.G.t': 'Ligne sans note, silence (G)', 'type.f': '┄ Saut', 'type.f.t': 'Saut invisible (f)',
+    'lbl.gen': 'Génération', 'lbl.angle': 'Angle', 'lbl.sym': 'Symétrie', 'lbl.mirror': 'Miroir', 'lbl.mirror.t': 'Refléter les nouvelles lignes sur l\'axe vertical', 'lbl.mirrorPitch': 'mêmes notes', 'lbl.mirrorPitch.t': 'Les lignes reflétées jouent les mêmes notes que leur original',
+    'lbl.grid': 'Grille', 'lbl.pitches': 'Hauteurs', 'btn.center.t': 'Centrer la vue', 'lbl.viewGen': 'Afficher jusqu\'à la génération',
+    'seg.title': 'Ligne :', 'seg.fixed': 'hauteur fixe', 'seg.fixed.t': 'Hauteur fixe (degré 1–24) au lieu de la hauteur automatique', 'seg.delete': 'Supprimer',
+    'seg.now': 'Note actuelle : degré {n}', 'seg.eff': ' · apparaît en réalité à la gén. {g}',
+    'sec.preview': 'Aperçu (norns, 128 × 64)', 'btn.fit': 'Ajuster', 'btn.fit.t': 'Choisir la longueur de pas et le point de départ pour que la plante tienne à l\'écran',
+    'lbl.plant2': 'Afficher la plante 2 (atténuée)', 'sec.sound': 'Son', 'btn.play': '▶ Lecture', 'btn.stop': '■ Stop', 'lbl.loop': 'Boucle',
+    'lbl.noteMs': 'Durée de note', 'lbl.scale': 'Gamme', 'lbl.root': 'Note fondamentale', 'lbl.ns.t': 'Paramètre « note scalar » de Flora (3 par défaut)',
+    'sound.note': 'Hauteurs en degrés 1–24 de la gamme, « · » = silence. Le son n\'est qu\'une approximation du moteur de Flora.',
+    'mel.none': 'Aucune note : ajoute des lignes de type « Note ».', 'mel.mute': 'muet',
+    'lbl.name': 'Nom', 'lbl.length': 'Longueur de pas', 'lbl.rot': 'Direction initiale', 'lbl.maxgen': 'Gén. max', 'lbl.startgen': 'Gén. initiale', 'lbl.axiom': 'Axiome',
+    'lbl.rules': 'Règles (une par ligne : <code>A = …</code>)', 'btn.toDrawing': 'Construire le dessin depuis le code', 'btn.toDrawing.t': 'Reconstruire le dessin à partir du code',
+    'btn.recompile': 'Générer le code depuis le dessin', 'btn.recompile.t': 'Régénérer le code à partir du dessin', 'lbl.gens': 'Générations',
+    'tbl.gen': 'Gén.', 'tbl.chars': 'Caractères', 'tbl.notes': 'Notes', 'tbl.rests': 'Silences', 'tbl.start': '(départ)', 'tbl.cut': 'tronquée', 'tbl.tight': 'limite',
+    'sec.export': 'Export', 'btn.save2': 'Enregistrer .flora', 'btn.maiden': 'Commande maiden', 'btn.catalog': 'Entrée de catalogue',
+    'export.note': 'Sur le norns, le fichier <code>.flora</code> va dans <code>dust/data/flora/nursery/</code>. Ensuite dans Flora : K1 → PARAMETERS → EDIT → GARDENING → <b>ADD PLANT TO GARDEN</b>. La commande maiden crée le fichier directement (à coller dans la REPL de maiden).',
+    'btn.copy': 'Copier', 'btn.copied': 'Copié ✓', 'btn.close': 'Fermer', 'btn.cancel': 'Annuler',
+    'sym.none': 'aucune', 'sym.n': '{n} fois',
+    'st.auto': 'Le code est généré automatiquement à partir du dessin.',
+    'st.file': 'Code chargé depuis un fichier sans données de dessin. Le dessin a été reconstruit à partir du code ; le code reste inchangé tant que tu ne modifies pas le dessin.',
+    'st.mismatch': 'Le code du fichier ne correspond plus au dessin enregistré avec lui (p. ex. modifié hors de l\'éditeur). Le code reste inchangé tant que tu ne modifies pas le dessin.',
+    'st.edit': 'Le code a été modifié à la main : le dessin n\'y est plus lié.',
+    'st.cut': '⚠ Au moins une génération dépasse {max} caractères : Flora coupe le reste.',
+    'st.range': '⚠ Certaines notes sont hors des degrés 1–24 ; Flora saute alors à l\'autre bout de la gamme.',
+    'st.bang': '« ! » sans trois chiffres fait utiliser à Flora un angle aléatoire (non simulé ici).',
+    'st.rule': 'Règle « {k} » : seule une lettre unique qui n\'est pas un symbole de la tortue est autorisée.',
+    'st.last': 'Dernière génération : {len} / {max} caractères, {n} notes.',
+    'w.unreached': '{n} ligne(s) ne sont pas reliées au point de départ et manquent dans le code. Relie-les (au besoin avec un saut invisible).',
+    'w.mirrorCheap': 'Pour que le code reste sous {max} caractères, certaines paires reflétées partagent une note différente de l\'original.',
+    'w.mirrorOff': 'Des notes identiques pour les reflets rendraient le code plus long que {max} caractères : elles n\'ont pas été alignées.',
+    'err.letters': 'Trop de parties de croissance différentes : pas assez de lettres auxiliaires.',
+    'err.noplant': 'Aucune plante Flora trouvée (axiome manquant).',
+    'notice.vanished': 'Remarque : dans ce code, certaines lignes disparaissent à nouveau pendant la croissance (p. ex. pointes qui avancent). Le dessin ne contient que la forme finale ; le code généré à partir de lui pousse un peu différemment.',
+    'hint.empty': 'Trace une ligne depuis le point de départ rouge. Molette = zoom, bouton droit = déplacer.',
+    'hint.manual': 'Le code n\'est pas lié : modifier le dessin régénère le code.',
+    'drag.step': '{n} pas', 'drag.steps': '{n} pas',
+    'ask.change': 'Le code n\'est pas lié au dessin. Si tu modifies le dessin, le code est régénéré à partir de lui et le code actuel est perdu.', 'ok.change': 'Modifier le dessin',
+    'ask.angle': 'Après un changement d\'angle, le dessin ne correspond plus à la grille et sera supprimé. (Annulable avec ↶.)', 'ok.angle': 'Changer l\'angle',
+    'ask.recompile': 'Régénérer le code à partir du dessin ? Le code actuel sera perdu.', 'ok.recompile': 'Générer le code',
+    'info.angles': 'Le dessin ne fonctionne qu\'avec des angles de 30°, 45°, 60° ou 90°.',
+    'ask.replace': 'Le dessin sera remplacé par les lignes du code (sans symétrie ni hauteurs fixes).', 'ok.replace': 'Remplacer',
+    'info.noaudio': 'Ce navigateur ne peut pas jouer de son.', 'info.readerr': 'Le fichier n\'a pas pu être lu : {msg}',
+    'ask.new': 'Commencer une nouvelle plante vide ? Si tu n\'as pas enregistré l\'actuelle, tu ne pourras la récupérer qu\'avec ↶ (Annuler).', 'ok.new': 'Recommencer',
+    'ok.continue': 'Continuer', 'modal.maiden': 'Commande maiden (à coller dans la REPL de maiden)', 'modal.catalog': 'Entrée pour lib/gardens/garden_catalog_default.lua', 'modal.help': 'Aide',
+    'default.name': 'nouvelle_plante',
+    'scale.1': 'Majeure', 'scale.2': 'Mineure naturelle', 'scale.3': 'Mineure harmonique', 'scale.4': 'Mineure mélodique', 'scale.5': 'Dorienne', 'scale.6': 'Phrygienne',
+    'scale.7': 'Lydienne', 'scale.8': 'Mixolydienne', 'scale.9': 'Locrienne', 'scale.10': 'Par tons', 'scale.11': 'Pentatonique majeure', 'scale.12': 'Pentatonique mineure',
+    'help': `<p><b>Dessiner :</b> Avec ✏️, tu traces une ligne depuis le point de départ rouge ou depuis un nœud. Elle s'aligne sur les directions permises par l'angle et est découpée en pas. <b>Symétrie</b> répète tout autour du point de départ, <b>Miroir</b> ajoute chaque nouvelle ligne reflétée sur l'axe vertical. Les copies symétriques sonnent toujours comme l'original ; avec <b>mêmes notes</b>, les reflets aussi.</p>
+<p><b>Types de ligne :</b> ♪ <i>Note</i> (F) dessine et joue une note, — <i>Ligne</i> (G) dessine avec un silence, ┄ <i>Saut</i> (f) se déplace de façon invisible (p. ex. du centre vers un anneau).</p>
+<p><b>Croissance :</b> Chaque ligne a une <b>génération</b> (couleur). La génération 0 est présente tout de suite, les suivantes poussent l'une après l'autre. Les nouvelles lignes prennent la génération de la barre d'outils. Avec 🖌, tu appliques type et génération à des lignes existantes. Le curseur « Afficher jusqu'à la génération » montre la croissance.</p>
+<p><b>Mélodie :</b> Les nombres sur les lignes de note sont les hauteurs (degré 1–24) que jouerait Flora. Sélectionne une ligne de note avec ↖ et règle une <b>hauteur fixe</b> : le code reçoit alors des symboles qui ne changent pas la forme (<code>[]</code>, <code>+-</code>, <code>|---</code>) et règlent exactement ce degré.</p>
+<p><b>Code :</b> L'axiome et les règles sont générés automatiquement. Tu peux aussi les modifier à la main ; le dessin n'est alors plus lié. « Construire le dessin depuis le code » reprend les lignes d'un code (p. ex. un exemple) dans le dessin. À l'enregistrement, le dessin est stocké comme commentaire dans le fichier <code>.flora</code>.</p>
+<p><b>Règles de Flora simulées ici :</b> Chaque génération est coupée à {max} caractères. <code>+</code>/<code>-</code> changent la hauteur de <code>ceil(note scalar × angle en radians)</code>, <code>]</code> la remet au degré 12.</p>
+<p><b>Touches :</b> D/S/P/E outils · 1/2/3 type de ligne · Suppr efface la ligne sélectionnée · Ctrl+Z/Ctrl+Y · Espace lance la lecture · molette = zoom · bouton droit = déplacer.</p>`,
+  },
+};
+const LANGS = Object.keys(I18N);
+let LANG = 'de';
+function detectLang() {
+  try { const saved = JSON.parse(localStorage.getItem('flora-editor-v1') || 'null'); if (saved && saved.ui && LANGS.includes(saved.ui.lang)) return saved.ui.lang; } catch (e) { /* kein Speicher */ }
+  for (const l of (navigator.languages || [navigator.language || ''])) { const k = String(l).slice(0, 2).toLowerCase(); if (LANGS.includes(k)) return k; }
+  return 'en';
+}
+function t(key, vars) {
+  let s = (I18N[LANG] && I18N[LANG][key]) ?? I18N.de[key] ?? key;
+  if (vars) s = s.replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ''));
+  return s;
+}
+LANG = detectLang();
+/* =====================================================================
+   Flora-Nachbildung: L-System, Turtle, Tonlogik (nach jaseknighter/flora,
+   lib/l_system.lua, lib/turtle.lua, lib/plant_sounds.lua)
+   ===================================================================== */
+const DEG = Math.PI / 180;
+const MAX_LEN = 300;        // MAX_SENTENCE_LENGTH in lib/globals.lua
+const TOP = 24;             // Laenge der Tonleiter (scale_length)
+const LETTERS = 'ABCDEHIJKLMNOPQRSTUVWXYZabcdeghijklmnopqstuvwxyz'.split('');
+const SPECIAL = new Set(['F', 'G', 'f', '+', '-', '[', ']', '|', '!', 'r']);
+// Reihenfolge wie MusicUtil.SCALES (Nummer = Floras "scale mode")
+const SCALES = [
+  ['Dur', [0, 2, 4, 5, 7, 9, 11]], ['Natürliches Moll', [0, 2, 3, 5, 7, 8, 10]],
+  ['Harmonisches Moll', [0, 2, 3, 5, 7, 8, 11]], ['Melodisches Moll', [0, 2, 3, 5, 7, 9, 11]],
+  ['Dorisch', [0, 2, 3, 5, 7, 9, 10]], ['Phrygisch', [0, 1, 3, 5, 7, 8, 10]],
+  ['Lydisch', [0, 2, 4, 6, 7, 9, 11]], ['Mixolydisch', [0, 2, 4, 5, 7, 9, 10]],
+  ['Lokrisch', [0, 1, 3, 5, 6, 8, 10]], ['Ganzton', [0, 2, 4, 6, 8, 10]],
+  ['Dur-Pentatonik', [0, 2, 4, 7, 9]], ['Moll-Pentatonik', [0, 3, 5, 7, 10]],
+];
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const GEN_COLORS = ['#6cc4ff', '#7ddc8a', '#ffd166', '#ff9f68', '#f78fb3', '#b39cff', '#5ee6d0', '#e0e0e0'];
+const genColor = g => GEN_COLORS[g % GEN_COLORS.length];
+
+function grow(axiom, rules, gens) {
+  const map = new Map();
+  for (const [k, v] of rules) if (k && !map.has(k)) map.set(k, v);
+  const out = [{ s: axiom, cut: false }];
+  let s = axiom;
+  for (let g = 1; g <= gens; g++) {
+    let n = '';
+    for (const ch of s) n += map.has(ch) ? map.get(ch) : ch;
+    const cut = n.length > MAX_LEN;
+    if (n.length >= MAX_LEN) n = n.slice(0, MAX_LEN);
+    out.push({ s: n, cut });
+    s = n;
+  }
+  return out;
+}
+
+// Turtle in Schritt-Einheiten, y nach oben, Startrichtung rot0 (Grad)
+function trace(s, angle, rot0 = 90) {
+  let x = 0, y = 0, rot = rot0;
+  const st = [], ops = [];
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === 'F' || c === 'G' || c === 'f') {
+      const nx = x + Math.cos(rot * DEG), ny = y + Math.sin(rot * DEG);
+      ops.push({ c, x0: x, y0: y, x1: nx, y1: ny, i });
+      x = nx; y = ny;
+    } else if (c === '+') rot += angle;
+    else if (c === '-') rot -= angle;
+    else if (c === '|') rot += 180;
+    else if (c === '[') st.push([x, y, rot]);
+    else if (c === ']') { if (st.length) [x, y, rot] = st.pop(); }
+    else if (c === '!') { const d = s.slice(i + 1, i + 4); if (/^\d{3}$/.test(d)) rot += parseInt(d, 10); }
+  }
+  return ops;
+}
+
+function pitchStep(note, ch, angle, ns) {
+  const th = angle * DEG;
+  if (ch === '+') { const n = note + Math.ceil(ns * th - 1e-9); return n <= TOP ? n : 1 + (n - TOP); }
+  if (ch === '-') { const n = note + Math.ceil(-ns * th - 1e-9); return n > 1 ? n : TOP - n; }
+  return note;
+}
+
+// Tonfolge wie plant_sounds.set_note: F = Ton, G = Pause, +/- verschieben, ] setzt auf 12 zurueck
+function melody(s, angle, ns) {
+  let note = null;
+  const ev = [];
+  for (let i = 0; i < s.length; i++) {
+    if (note === null) note = TOP / 2;
+    const c = s[i];
+    if (c === 'F') ev.push({ i, note });
+    else if (c === 'G') ev.push({ i, rest: true });
+    else if (c === '+' || c === '-') note = pitchStep(note, c, angle, ns);
+    else if (c === ']') note = null;
+    else if (c === '!') {
+      const d = s.slice(i + 1, i + 4);
+      if (/^\d{3}$/.test(d)) { let n = note + Math.ceil(ns * parseInt(d, 10) * DEG); if (n > TOP) n = 1 + (n - TOP); note = n; }
+    }
+  }
+  return ev;
+}
+
+function scaleNotes(root, mode) {
+  const iv = (SCALES[mode - 1] || SCALES[4])[1], out = [];
+  for (let i = 0; i < TOP; i++) out.push(root + 12 * Math.floor(i / iv.length) + iv[i % iv.length]);
+  return out;
+}
+function playableIndex(n) { if (n <= 0) n = TOP + n; if (n > TOP) n = n - TOP; return (n >= 1 && n <= TOP) ? n : null; }
+const midiName = m => NOTE_NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+
+// Kuerzeste formneutrale Zeichenfolge, die nach "[]" (Stufe 12) die Zielstufe erreicht
+const pitchTableCache = new Map();
+function pitchTable(angle, ns) {
+  const ck = angle + '|' + ns;
+  if (pitchTableCache.has(ck)) return pitchTableCache.get(ck);
+  const m = Math.round(180 / angle);
+  const toks = ['+-', '|' + '-'.repeat(m), '|' + '+'.repeat(m)];
+  const apply = (n, t) => { for (const c of t) n = pitchStep(n, c, angle, ns); return n; };
+  const best = new Map([[12, '']]);
+  let frontier = [12];
+  while (frontier.length) {
+    const nf = [];
+    for (const n of frontier) for (const t of toks) {
+      const v = apply(n, t);
+      if (v < 1 || v > TOP) continue;
+      const str = best.get(n) + t;
+      if (!best.has(v) || best.get(v).length > str.length) { best.set(v, str); nf.push(v); }
+    }
+    frontier = nf;
+  }
+  pitchTableCache.set(ck, best);
+  return best;
+}
+
+/* =====================================================================
+   .flora-Format (tab.save)
+   ===================================================================== */
+function parseFlora(text) {
+  const tables = {};
+  let cur = null, id = null;
+  const val = v => {
+    v = v.trim();
+    let m;
+    if ((m = v.match(/^\{(\d+)\}$/))) return { ref: +m[1] };
+    if ((m = v.match(/^"((?:[^"\\]|\\.)*)"$/))) return m[1].replace(/\\(.)/g, (_, c) => c === 'n' ? '\n' : c);
+    if (v === 'true') return true;
+    if (v === 'false') return false;
+    if (v !== '' && !isNaN(+v)) return +v;
+    return v;
+  };
+  let editor = null;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    let m;
+    if (line.startsWith('-- flora-editor ')) { try { editor = JSON.parse(line.slice(16)); } catch (e) { editor = null; } continue; }
+    if ((m = line.match(/^-- Table: \{(\d+)\}/))) { id = +m[1]; continue; }
+    if (line === '{' && id !== null) { cur = { arr: [], obj: {} }; tables[id] = cur; continue; }
+    if (/^\},?$/.test(line)) { cur = null; continue; }
+    if (!cur || !line) continue;
+    const body = line.replace(/,$/, '');
+    if ((m = body.match(/^\["((?:[^"\\]|\\.)*)"\]=(.*)$/))) cur.obj[m[1]] = val(m[2]);
+    else if ((m = body.match(/^\[(\d+)\]=(.*)$/))) cur.arr[+m[1] - 1] = val(m[2]);
+    else cur.arr.push(val(body));
+  }
+  const resolve = (t, seen = new Set()) => {
+    if (!t) return null;
+    const conv = v => (v && typeof v === 'object' && 'ref' in v) ? (seen.has(v.ref) ? null : resolve(tables[v.ref], new Set([...seen, v.ref]))) : v;
+    if (t.arr.length && !Object.keys(t.obj).length) return t.arr.map(conv);
+    const o = {};
+    for (const k in t.obj) o[k] = conv(t.obj[k]);
+    t.arr.forEach((v, i) => { o[i + 1] = conv(v); });
+    return o;
+  };
+  const root = resolve(tables[1], new Set([1]));
+  if (!root || root.axiom === undefined) throw new Error(t('err.noplant'));
+  const rules = (Array.isArray(root.ruleset) ? root.ruleset : []).filter(r => Array.isArray(r) && r.length >= 2).map(r => [String(r[0]), String(r[1])]);
+  return {
+    angle: +root.angle || 0, axiom: String(root.axiom), rot: root.initial_turtle_rotation !== undefined ? +root.initial_turtle_rotation : 90,
+    length: root.length !== undefined ? +root.length : 4, maxGen: root.max_generations !== undefined ? +root.max_generations : 1,
+    startGen: root.starting_generation !== undefined ? +root.starting_generation : 0,
+    x: root.start_from && root.start_from.x !== undefined ? +root.start_from.x : 64,
+    y: root.start_from && root.start_from.y !== undefined ? +root.start_from.y : 58, rules, editor,
+  };
+}
+const luaStr = s => '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+const num = v => String(Math.round(v * 1000) / 1000);
+function exportRules(c) { return c.rules.length ? c.rules : [['Z', 'Z']]; }
+function toFlora(c, meta) {
+  const rules = exportRules(c);
+  const L = ['return {', '-- Table: {1}', '{',
+    `   ["angle"]=${num(c.angle)},`, `   ["axiom"]=${luaStr(c.axiom)},`, `   ["initial_turtle_rotation"]=${num(c.rot)},`,
+    `   ["length"]=${num(c.length)},`, `   ["max_generations"]=${Math.max(1, c.maxGen)},`, '   ["ruleset"]={2},',
+    '   ["start_from"]={3},', `   ["starting_generation"]=${c.startGen},`, '},', '-- Table: {2}', '{'];
+  rules.forEach((_, i) => L.push(`   {${4 + i}},`));
+  L.push('},', '-- Table: {3}', '{', `   ["x"]=${num(c.x)},`, `   ["y"]=${num(c.y)},`, '},');
+  rules.forEach((r, i) => L.push(`-- Table: {${4 + i}}`, '{', `   ${luaStr(r[0])},`, `   ${luaStr(r[1])},`, '},'));
+  L[L.length - 1] = '}';
+  L.push('}');
+  // Zeichnung als Lua-Kommentar anhaengen: Flora ignoriert ihn, der Editor stellt daraus die Zeichnung wieder her
+  if (meta) L.push('-- flora-editor ' + JSON.stringify(meta));
+  return L.join('\n');
+}
+const r6 = v => Math.round(v * 1e6) / 1e6;
+function drawingMeta(D, ns) {
+  return { v: 1, ns, sym: D.sym, mirror: !!D.mirror, mirrorPitch: D.mirrorPitch !== false, armOffsets: D.armOffsets || '',
+    segs: D.segs.map(s => [r6(s.ax), r6(s.ay), r6(s.bx), r6(s.by), s.t, s.g, s.p ?? null]) };
+}
+function drawingFromMeta(m) {
+  const segs = (m.segs || []).map((a, i) => ({ id: i + 1, ax: +a[0], ay: +a[1], bx: +a[2], by: +a[3], t: a[4], g: +a[5] || 0, p: a[6] ?? null }));
+  // aeltere Dateien ohne mirrorPitch wurden ohne Angleichung gespeichert
+  return { sym: +m.sym || 1, mirror: !!m.mirror, mirrorPitch: m.mirrorPitch === true, segs, armOffsets: m.armOffsets || '', nextId: segs.length + 1 };
+}
+function toMaiden(c, name) {
+  const rl = exportRules(c).map(r => `{${luaStr(r[0])},${luaStr(r[1])}}`).join(',');
+  return `local p={angle=${num(c.angle)},axiom=${luaStr(c.axiom)},initial_turtle_rotation=${num(c.rot)},length=${num(c.length)},` +
+    `max_generations=${Math.max(1, c.maxGen)},starting_generation=${c.startGen},start_from={x=${num(c.x)},y=${num(c.y)}},ruleset={${rl}}} ` +
+    `util.make_dir(_path.data.."flora/nursery") tab.save(p,_path.data.."flora/nursery/${name}.flora") print("gespeichert: ${name}.flora")`;
+}
+function toCatalog(c, name) {
+  const rl = exportRules(c).map(r => `      {${luaStr(r[0])},${luaStr(r[1])}}`).join(',\n');
+  const dx = Math.round((c.x - 64) * 1000) / 1000, dy = Math.round((64 - c.y) * 1000) / 1000;
+  return `  {\n    -- ${name}\n    start_from = vector:new(screen_size.x/2 ${dx < 0 ? '-' : '+'} ${Math.abs(dx)}, screen_size.y - ${dy}),\n` +
+    `    ruleset = {\n${rl}\n    },\n    axiom = ${luaStr(c.axiom)},\n    max_generations = ${Math.max(1, c.maxGen)},\n` +
+    `    length = ${num(c.length)},\n    angle = ${num(c.angle)},\n    initial_turtle_rotation = ${num(c.rot)},\n    starting_generation = ${c.startGen}\n  }`;
+}
+
+/* =====================================================================
+   Zeichnung: Liniensegmente der Laenge 1 auf dem Winkelraster
+   ===================================================================== */
+const pkey = (x, y) => Math.round(x * 1000) + ',' + Math.round(y * 1000);
+function segKeyXY(ax, ay, bx, by) { const a = pkey(ax, ay), b = pkey(bx, by); return a < b ? a + '|' + b : b + '|' + a; }
+const segKey = s => segKeyXY(s.ax, s.ay, s.bx, s.by);
+function rotP(x, y, deg) { const c = Math.cos(deg * DEG), s = Math.sin(deg * DEG); return [x * c - y * s, x * s + y * c]; }
+function rotSeg(s, deg) { const [ax, ay] = rotP(s.ax, s.ay, deg), [bx, by] = rotP(s.bx, s.by, deg); return { ...s, ax, ay, bx, by }; }
+function symOptions(angle) {
+  return [1, 2, 3, 4, 6, 8, 12].filter(n => Math.abs((360 / n) / angle - Math.round((360 / n) / angle)) < 1e-9);
+}
+// alle sichtbaren Kopien (Symmetrie) einer Zeichnung
+function segCopies(D) {
+  const out = [], n = D.sym || 1;
+  for (let i = 0; i < n; i++) for (const s of D.segs) out.push({ seg: s, copy: i, ...rotSeg(s, i * 360 / n) });
+  return out;
+}
+
+/* Compiler: Zeichnung -> Axiom + Regeln.
+   Tiefensuche vom Startpunkt; Aeste in [ ], der laengste Ast ohne Klammern.
+   Jede Linie erscheint in ihrer Generation: spaetere Teile stecken hinter
+   Hilfsbuchstaben, die pro Generation eine Stufe weiterwachsen. */
+function compile(D, angle, ns, tmpPitch) {
+  const warnings = [];
+  const nodes = new Map();
+  const node = (x, y) => { const k = pkey(x, y); if (!nodes.has(k)) nodes.set(k, { k, x, y, edges: [] }); return nodes.get(k); };
+  const O = node(0, 0);
+  const edges = D.segs.map(s => { const u = node(s.ax, s.ay), v = node(s.bx, s.by); const e = { s, u, v }; u.edges.push(e); v.edges.push(e); return e; });
+  const less = (a, b) => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
+  // Baum: Wege mit moeglichst frueher Generation bevorzugen
+  const dist = new Map([[O.k, [0, 0]]]), parent = new Map(), done = new Set();
+  for (;;) {
+    let best = null;
+    for (const [k, d] of dist) if (!done.has(k) && (!best || less(d, dist.get(best)))) best = k;
+    if (!best) break;
+    done.add(best);
+    const n = nodes.get(best), d = dist.get(best);
+    for (const e of n.edges) {
+      const o = e.u === n ? e.v : e.u;
+      const nd = [Math.max(d[0], e.s.g), d[1] + 1];
+      if (!done.has(o.k) && (!dist.has(o.k) || less(nd, dist.get(o.k)))) { dist.set(o.k, nd); parent.set(o.k, e); }
+    }
+  }
+  const kids = new Map(), effGen = new Map();
+  const addKid = (n, item) => { if (!kids.has(n.k)) kids.set(n.k, []); kids.get(n.k).push(item); };
+  let unreached = 0;
+  for (const e of edges) {
+    if (!dist.has(e.u.k) || !dist.has(e.v.k)) { unreached++; continue; }
+    if (parent.get(e.v.k) === e) addKid(e.u, { e, to: e.v, tree: true });
+    else if (parent.get(e.u.k) === e) addKid(e.v, { e, to: e.u, tree: true });
+    else if (less(dist.get(e.v.k), dist.get(e.u.k))) addKid(e.v, { e, to: e.u, tree: false });
+    else addKid(e.u, { e, to: e.v, tree: false });
+  }
+  if (unreached) warnings.push(t('w.unreached', { n: unreached }));
+
+  const rules = new Map(), memo = new Map();
+  let li = 0, maxG = 0;
+  const letterFor = body => {
+    if (memo.has(body)) return memo.get(body);
+    if (li >= LETTERS.length) throw new Error(t('err.letters'));
+    const L = LETTERS[li++];
+    memo.set(body, L); rules.set(L, body);
+    return L;
+  };
+  const defer = (body, d) => { let s = body; for (let k = 0; k < d; k++) s = letterFor(s); return s; };
+  const turn = (h, d) => {
+    let delta = ((d - h) % 360 + 540) % 360 - 180;
+    if (Math.abs(delta + 180) < 1e-6) delta = 180;
+    if (Math.abs(Math.abs(delta) - 180) < 1e-6) return '|';
+    const k = Math.round(delta / angle);
+    const plain = (k > 0 ? '+' : '-').repeat(Math.abs(k));
+    const d2 = delta > 0 ? delta - 180 : delta + 180, k2 = Math.round(d2 / angle);
+    const alt = '|' + (k2 > 0 ? '+' : '-').repeat(Math.abs(k2));
+    return alt.length < plain.length ? alt : plain;
+  };
+  const table = pitchTable(angle, ns);
+  const prefix = (s, off) => {
+    const want = s.p ?? (tmpPitch ? tmpPitch.get(s.id) : undefined);
+    if (s.t !== 'F' || want === null || want === undefined) return '';
+    const t = Math.max(1, Math.min(TOP, want + off));
+    if (table.has(t)) return '[]' + table.get(t);
+    let bt = 12; for (const k of table.keys()) if (Math.abs(k - t) < Math.abs(bt - t)) bt = k;
+    return '[]' + table.get(bt);
+  };
+  // frueheste Generation in einem Ast (Spruenge zaehlen nur, wenn nichts dahinter kommt)
+  const minMemo = new Map();
+  const minGen = c => {
+    if (minMemo.has(c)) return minMemo.get(c);
+    let m = c.e.s.t === 'f' ? Infinity : c.e.s.g;
+    if (c.tree) for (const k of (kids.get(c.to.k) || [])) m = Math.min(m, minGen(k));
+    if (m === Infinity) m = c.e.s.g;
+    minMemo.set(c, m);
+    return m;
+  };
+  const emit = (n, h, p, off) => {
+    const list = (kids.get(n.k) || []).map(c => {
+      const dir = Math.atan2(c.to.y - n.y, c.to.x - n.x) / DEG;
+      const m = Math.max(p, minGen(c)), s = c.e.s;
+      const g = s.t === 'f' ? m : Math.max(m, s.g);
+      maxG = Math.max(maxG, g);
+      effGen.set(s.id, g);
+      // Linie waechst spaeter als der Ast dahinter: erst unsichtbar ueberspringen, spaeter zeichnen
+      const own = g > m ? '[' + defer(prefix(s, off) + s.t, g - m) + ']f' : prefix(s, off) + s.t;
+      const body = turn(h, dir) + own + (c.tree ? emit(c.to, dir, m, off) : '');
+      return defer(body, m - p);
+    });
+    list.sort((a, b) => a.length - b.length);
+    return list.map((b, i) => i < list.length - 1 ? '[' + b + ']' : b).join('');
+  };
+  const n = D.sym || 1, step = 360 / n;
+  const offs = String(D.armOffsets || '').split(/[,;\s]+/).filter(x => x !== '').map(Number);
+  let axiom;
+  if (n === 1) axiom = emit(O, 90, 0, offs[0] || 0);
+  else {
+    const arms = [];
+    for (let i = 0; i < n; i++) arms.push(emit(O, 90, 0, offs[i] || 0));
+    // Die Drehung zwischen den Armen verschiebt in Flora die Tonhoehe. "[]" stellt sie danach wieder auf
+    // Stufe 12 (wie am Anfang des ersten Arms), damit jede Kopie genau wie der gezeichnete Arm klingt.
+    let sep = turn(0, step);
+    if (/[+-]/.test(sep)) sep += '[]';
+    axiom = arms.every(a => a === '') ? '' : arms.map((a, i) => i < n - 1 ? '[' + a + ']' + sep : a).join('');
+  }
+  return { axiom, rules: [...rules.entries()], maxGen: Math.max(1, maxG), warnings, effGen };
+}
+
+function copyIndexOf(D) {
+  const m = new Map();
+  for (const c of segCopies(D)) m.set(segKeyXY(c.ax, c.ay, c.bx, c.by), c);
+  return m;
+}
+// Tonhoehe jeder Ton-Linie (Grundarm) in der letzten Generation eines Compiler-Ergebnisses
+function pitchBySeg(cc, D, angle, ns) {
+  const gens = grow(cc.axiom, cc.rules, cc.maxGen), s = gens[gens.length - 1].s;
+  const noteAt = new Map(melody(s, angle, ns).filter(e => !e.rest).map(e => [e.i, e.note]));
+  const idx = copyIndexOf(D), res = new Map();
+  for (const op of trace(s, angle, 90)) {
+    if (op.c !== 'F') continue;
+    const c = idx.get(segKeyXY(op.x0, op.y0, op.x1, op.y1));
+    if (c && c.copy === 0 && !res.has(c.seg.id)) res.set(c.seg.id, noteAt.get(op.i));
+  }
+  return res;
+}
+/* Wie compile, aber gespiegelte Ton-Linien (an der senkrechten Achse) spielen denselben Ton wie ihr Original.
+   Flora dreht fuer das Spiegelbild in die Gegenrichtung und landet so auf einer anderen Stufe; hier bekommt
+   die Linie dann eine feste Tonhoehe. Hat nur eine Seite eine feste Tonhoehe, folgt ihr die andere. */
+function compileDrawing(D, angle, ns) {
+  let cc = compile(D, angle, ns);
+  if (D.mirrorPitch === false) return cc;
+  const idx = copyIndexOf(D), pairs = [];
+  for (const s of D.segs) {
+    if (s.t !== 'F') continue;
+    const c = idx.get(segKeyXY(-s.ax, s.ay, -s.bx, s.by));
+    if (c && c.seg.id !== s.id && c.seg.t === 'F' && s.id < c.seg.id) pairs.push([s, c.seg]);
+  }
+  if (!pairs.length) return cc;
+  const base = cc, P0 = pitchBySeg(base, D, angle, ns), table = pitchTable(angle, ns);
+  const isFixed = s => s.p !== null && s.p !== undefined;
+  const cost = (s, w) => (isFixed(s) || P0.get(s.id) === w) ? 0 : (table.has(w) ? 2 + table.get(w).length : 99);
+  // 'orig': Spiegelbild uebernimmt den Ton des Originals; 'cheap': gemeinsamer Ton mit den wenigsten Zusatzzeichen
+  const targetOf = (a, b, mode) => {
+    if (isFixed(a)) return a.p;
+    if (isFixed(b)) return b.p;
+    const pa = P0.get(a.id), pb = P0.get(b.id);
+    if (mode === 'orig' || pa === undefined) return pa;
+    let best = pa, bc = Infinity;
+    for (const w of [pa, pb, 12, 13, 11]) { if (w === undefined) continue; const c = cost(a, w) + cost(b, w); if (c < bc) { bc = c; best = w; } }
+    return best;
+  };
+  const tooLong = r => grow(r.axiom, r.rules, r.maxGen).some(g => g.cut);
+  const run = mode => {
+    const tmp = new Map();
+    let r = base;
+    for (let it = 0; it < 6; it++) {
+      const P = it === 0 ? P0 : pitchBySeg(r, D, angle, ns);
+      let changed = false;
+      for (const [a, b] of pairs) {
+        const want = targetOf(a, b, mode);
+        if (want === undefined) continue;
+        for (const s of [a, b]) {
+          if (isFixed(s)) continue;
+          if (P.get(s.id) !== want && tmp.get(s.id) !== want) { tmp.set(s.id, want); changed = true; }
+        }
+      }
+      if (!changed) break;
+      r = compile(D, angle, ns, tmp);
+    }
+    return r;
+  };
+  const orig = run('orig');
+  if (!tooLong(orig)) return orig;
+  const cheap = run('cheap');
+  if (!tooLong(cheap)) { cheap.warnings.push(t('w.mirrorCheap', { max: MAX_LEN })); return cheap; }
+  base.warnings.push(t('w.mirrorOff', { max: MAX_LEN }));
+  return base;
+}
+
+// Code -> Zeichnung: die Linien der letzten Generation, jede mit der Generation, ab der sie zu sehen ist.
+// Linien, die beim Wachsen wieder verschwinden, kann eine Zeichnung nicht darstellen; sie fallen weg.
+function drawingFromCode(c) {
+  const gens = grow(c.axiom, c.rules, Math.max(0, c.maxGen));
+  const rank = { f: 0, G: 1, F: 2 }, finalSeg = new Map();
+  for (const op of trace(gens[gens.length - 1].s, c.angle, 90)) {
+    const k = segKeyXY(op.x0, op.y0, op.x1, op.y1);
+    if (!finalSeg.has(k)) finalSeg.set(k, { ax: op.x0, ay: op.y0, bx: op.x1, by: op.y1, t: op.c });
+    else if (rank[op.c] > rank[finalSeg.get(k).t]) finalSeg.get(k).t = op.c;
+  }
+  // ab welcher Generation ist die Linie ohne Unterbrechung bis zum Ende sichtbar?
+  const present = gens.map(gg => {
+    const set = new Set();
+    for (const op of trace(gg.s, c.angle, 90)) if (op.c !== 'f') set.add(segKeyXY(op.x0, op.y0, op.x1, op.y1));
+    return set;
+  });
+  let id = 1, vanished = 0;
+  for (let g = 0; g < present.length - 1; g++) for (const k of present[g]) if (!finalSeg.has(k)) vanished++;
+  const segs = [...finalSeg.entries()].map(([k, s]) => {
+    let g = present.length - 1;
+    if (s.t !== 'f') while (g > 0 && present[g - 1].has(k)) g--;
+    else g = 0;
+    return { id: id++, ax: s.ax, ay: s.ay, bx: s.bx, by: s.by, g, t: s.t, p: null };
+  });
+  segs.vanished = vanished;
+  return segs;
+}
+
+/* =====================================================================
+   Zustand, Rueckgaengig, Speichern im Browser
+   ===================================================================== */
+const STORE_KEY = 'flora-editor-v1';
+function freshState() {
+  return {
+    name: t('default.name'),
+    code: { angle: 60, length: 4, rot: 90, x: 64, y: 37, maxGen: 1, startGen: 1, axiom: '', rules: [] },
+    manual: false,
+    draw: { sym: 6, mirror: true, mirrorPitch: true, segs: [], armOffsets: '', nextId: 1 },
+  };
+}
+let S = freshState();
+const UI = { tool: 'draw', type: 'F', curGen: 0, viewGen: null, sel: null, grid: true, pitches: true, plant2: true,
+  scale: 5, root: 45, ns: 3, ms: 250, loop: false };
+let undoStack = [], redoStack = [];
+const snapshot = () => JSON.stringify(S);
+function pushUndo() { undoStack.push(snapshot()); if (undoStack.length > 200) undoStack.shift(); redoStack = []; }
+function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); S = JSON.parse(undoStack.pop()); UI.sel = null; syncFromState(); }
+function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); S = JSON.parse(redoStack.pop()); UI.sel = null; syncFromState(); }
+let saveTimer = 0;
+function persist() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ S, ui: { scale: UI.scale, root: UI.root, ns: UI.ns, ms: UI.ms, lang: LANG } })); } catch (e) { /* kein Speicher verfuegbar */ }
+  }, 300);
+}
+function restore() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    if (d && d.S && d.S.code && d.S.draw) { S = d.S; const { lang, ...rest } = d.ui || {}; Object.assign(UI, rest); return true; }
+  } catch (e) { /* ignorieren */ }
+  return false;
+}
+
+/* =====================================================================
+   Ableitungen: Code aus Zeichnung, Generationen, Tonfolge
+   ===================================================================== */
+let compiled = null;   // letztes Compiler-Ergebnis
+let derived = null;    // Generationen, Spuren, Tonfolgen
+function recompileFromDrawing() {
+  try {
+    compiled = compileDrawing(S.draw, S.code.angle, UI.ns);
+    S.code.axiom = compiled.axiom;
+    S.code.rules = compiled.rules;
+    S.code.maxGen = compiled.maxGen;
+    S.code.startGen = compiled.maxGen;
+    S.manual = false;
+  } catch (e) {
+    compiled = { warnings: [e.message], effGen: new Map(), error: true };
+  }
+}
+function derive() {
+  const c = S.code;
+  const gens = grow(c.axiom, c.rules, Math.max(0, c.maxGen | 0));
+  const per = gens.map(gg => {
+    const ops = trace(gg.s, c.angle, c.rot);
+    const ev = melody(gg.s, c.angle, UI.ns);
+    return { s: gg.s, cut: gg.cut, ops, ev };
+  });
+  derived = { gens: per };
+}
+function viewGen() {
+  const max = derived ? derived.gens.length - 1 : 0;
+  return UI.viewGen === null ? max : Math.min(UI.viewGen, max);
+}
+// Linien-Schluessel (alle Symmetrie-Kopien) -> Segment
+function copyIndex() {
+  const m = new Map();
+  for (const c of segCopies(S.draw)) m.set(segKeyXY(c.ax, c.ay, c.bx, c.by), c);
+  return m;
+}
+
+/* =====================================================================
+   DOM
+   ===================================================================== */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const editor = $('#editor'), ectx = editor.getContext('2d');
+const preview = $('#preview'), pctx = preview.getContext('2d');
+const view = { scale: 34, panX: 0, panY: 40 };
+let hover = { seg: null, node: null }, drag = null, pan = null, playIdx = -1;
+
+function fillSelects() {
+  SCALES.forEach((s, i) => { const o = document.createElement('option'); o.value = i + 1; $('#scaleSel').appendChild(o); });
+  fillScaleNames();
+  for (const name of Object.keys(EXAMPLES)) { const o = document.createElement('option'); o.value = name; o.textContent = name; $('#exampleSel').appendChild(o); }
+}
+function fillScaleNames() { [...$('#scaleSel').options].forEach(o => { o.textContent = `${o.value} ${t('scale.' + o.value)}`; }); }
+function fillSym() {
+  const sel = $('#symSel'), opts = symOptions(S.code.angle);
+  sel.innerHTML = '';
+  for (const n of opts) { const o = document.createElement('option'); o.value = n; o.textContent = n === 1 ? t('sym.none') : t('sym.n', { n }); sel.appendChild(o); }
+  if (!opts.includes(S.draw.sym)) S.draw.sym = opts.includes(6) ? 6 : opts[opts.length - 1];
+  sel.value = S.draw.sym;
+}
+
+function syncFromState() {
+  const c = S.code;
+  $('#plantName').value = S.name;
+  $('#cAngle').value = c.angle; $('#cLength').value = c.length; $('#cRot').value = c.rot;
+  $('#cX').value = c.x; $('#cY').value = c.y; $('#cMax').value = c.maxGen; $('#cStart').value = c.startGen;
+  $('#cAxiom').value = c.axiom;
+  $('#cRules').value = c.rules.map(r => `${r[0]} = ${r[1]}`).join('\n');
+  const asel = $('#angleSel');
+  asel.value = [30, 45, 60, 90].includes(+c.angle) ? String(c.angle) : '';
+  fillSym();
+  $('#mirrorChk').checked = !!S.draw.mirror;
+  $('#mirrorPitchChk').checked = S.draw.mirrorPitch !== false;
+  $('#scaleSel').value = UI.scale; $('#rootNote').value = UI.root; $('#noteScalar').value = UI.ns; $('#noteMs').value = UI.ms;
+  if (!S.manual) recompileFromDrawing(); else compiled = null;
+  refresh();
+}
+function refreshCodeFields() {
+  const c = S.code;
+  $('#cAxiom').value = c.axiom;
+  $('#cRules').value = c.rules.map(r => `${r[0]} = ${r[1]}`).join('\n');
+  $('#cMax').value = c.maxGen; $('#cStart').value = c.startGen;
+}
+function refresh() {
+  derive();
+  const max = derived.gens.length - 1;
+  const vg = $('#viewGen');
+  vg.max = max; vg.value = viewGen(); $('#viewGenLbl').textContent = viewGen();
+  renderLegend(); renderStatus(); renderGenTable(); renderMelody(); renderSegPanel();
+  drawEditor(); drawPreview();
+  $('#btnUndo').disabled = !undoStack.length; $('#btnRedo').disabled = !redoStack.length;
+  persist();
+}
+
+function renderLegend() {
+  const maxG = Math.max(0, ...S.draw.segs.map(s => s.g), UI.curGen);
+  let h = '';
+  for (let g = 0; g <= Math.min(maxG, 12); g++) h += `<span><i style="background:${genColor(g)}"></i> ${g}</span>`;
+  $('#legend').innerHTML = h;
+}
+function renderStatus() {
+  const el = $('#status'), parts = [];
+  const last = derived.gens[derived.gens.length - 1];
+  if (!S.manual) parts.push(`<span class="ok">${t('st.auto')}</span>`);
+  else if (S.manualReason === 'file') parts.push(`<span class="warn">${t('st.file')}</span>`);
+  else if (S.manualReason === 'mismatch') parts.push(`<span class="warn">${t('st.mismatch')}</span>`);
+  else parts.push(`<span class="warn">${t('st.edit')}</span>`);
+  if (compiled && compiled.warnings) for (const w of compiled.warnings) parts.push(`<span class="warn">⚠ ${w}</span>`);
+  if (UI.notice) parts.push(`<span class="small">${t(UI.notice)}</span>`);
+  if (derived.gens.some(g => g.cut)) parts.push(`<span class="err">${t('st.cut', { max: MAX_LEN })}</span>`);
+  if (derived.gens.some(g => g.ev.some(e => !e.rest && (e.note < 1 || e.note > TOP))))
+    parts.push(`<span class="warn">${t('st.range')}</span>`);
+  const allCode = S.code.axiom + S.code.rules.map(r => r[1]).join('');
+  if (/!(?!\d{3})/.test(allCode)) parts.push(`<span class="warn">${t('st.bang')}</span>`);
+  for (const [k] of S.code.rules) if (SPECIAL.has(k) || k.length !== 1) parts.push(`<span class="err">${t('st.rule', { k })}</span>`);
+  parts.push(`<span class="small">${t('st.last', { len: last.s.length, max: MAX_LEN, n: last.ev.filter(e => !e.rest).length })}</span>`);
+  el.innerHTML = parts.join('<br>');
+}
+function renderGenTable() {
+  let h = `<tr><th>${t('tbl.gen')}</th><th>${t('tbl.chars')}</th><th>${t('tbl.notes')}</th><th>${t('tbl.rests')}</th><th></th></tr>`;
+  derived.gens.forEach((g, i) => {
+    const notes = g.ev.filter(e => !e.rest).length, rests = g.ev.length - notes;
+    const flag = g.cut ? `<span class="err">${t('tbl.cut')}</span>` : (g.s.length > MAX_LEN * 0.9 ? `<span class="warn">${t('tbl.tight')}</span>` : '');
+    h += `<tr><td>${i}${i === S.code.startGen ? ' ' + t('tbl.start') : ''}</td><td>${g.s.length}</td><td>${notes}</td><td>${rests}</td><td>${flag}</td></tr>`;
+  });
+  $('#genTable').innerHTML = h;
+}
+function renderMelody() {
+  const ev = derived.gens[viewGen()].ev;
+  const notes = scaleNotes(UI.root, UI.scale);
+  $('#melody').innerHTML = ev.length ? ev.map((e, k) => {
+    if (e.rest) return `<span class="rest" data-i="${e.i}">·</span>`;
+    const pi = playableIndex(e.note), bad = e.note < 1 || e.note > TOP;
+    const title = pi ? midiName(notes[pi - 1]) : t('mel.mute');
+    return `<span class="${bad ? 'bad' : ''}" data-i="${e.i}" title="${title}">${e.note}</span>`;
+  }).join(' ') : `<span class="small">${t('mel.none')}</span>`;
+}
+function selectedSeg() { return S.draw.segs.find(s => s.id === UI.sel) || null; }
+function naturalPitches() {
+  // Tonhoehe jeder Linie in der angezeigten Generation (fuer Beschriftung)
+  const res = new Map();
+  if (!derived) return res;
+  const g = derived.gens[viewGen()], idx = copyIndex();
+  const noteAt = new Map(g.ev.filter(e => !e.rest).map(e => [e.i, e.note]));
+  for (const op of g.ops) {
+    if (op.c !== 'F') continue;
+    const c = idx.get(segKeyXY(op.x0, op.y0, op.x1, op.y1));
+    if (c) res.set(c.seg.id + ':' + c.copy, noteAt.get(op.i));
+  }
+  return res;
+}
+function renderSegPanel() {
+  const s = selectedSeg(), p = $('#segPanel');
+  p.classList.toggle('show', !!s && UI.tool === 'select');
+  if (!s) return;
+  $$('#segPanel [data-st]').forEach(b => b.classList.toggle('on', b.dataset.st === s.t));
+  $('#segGen').value = s.g;
+  $('#segPitchChk').checked = s.p !== null && s.p !== undefined;
+  $('#segPitch').disabled = !$('#segPitchChk').checked || s.t !== 'F';
+  $('#segPitchChk').disabled = s.t !== 'F';
+  $('#segPitch').value = s.p ?? (naturalPitches().get(s.id + ':0') ?? 12);
+  const eg = compiled && compiled.effGen ? compiled.effGen.get(s.id) : undefined;
+  const np = naturalPitches().get(s.id + ':0');
+  $('#segInfo').textContent = (np !== undefined ? t('seg.now', { n: np }) : '') + (eg !== undefined && eg !== s.g ? t('seg.eff', { g: eg }) : '');
+}
+
+/* ---------- Editor zeichnen ---------- */
+function resizeEditor() {
+  const r = editor.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  editor.width = Math.max(1, Math.round(r.width * dpr)); editor.height = Math.max(1, Math.round(r.height * dpr));
+  ectx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawEditor();
+}
+const W2S = (x, y) => { const r = editor.getBoundingClientRect(); return [r.width / 2 + view.panX + x * view.scale, r.height / 2 + view.panY - y * view.scale]; };
+const S2W = (sx, sy) => { const r = editor.getBoundingClientRect(); return [(sx - r.width / 2 - view.panX) / view.scale, -(sy - r.height / 2 - view.panY) / view.scale]; };
+function dirs() { const a = S.code.angle, out = []; for (let k = 0; k * a < 360 - 1e-9; k++) out.push(90 + k * a); return out; }
+function gridPoints() {
+  const a = +S.code.angle, r = editor.getBoundingClientRect(), pts = [];
+  if (!UI.grid || ![30, 60, 90].includes(a)) return pts;
+  const [x0, y1] = S2W(0, 0), [x1, y0] = S2W(r.width, r.height);
+  if (a === 90) {
+    for (let i = Math.floor(x0); i <= Math.ceil(x1); i++) for (let j = Math.floor(y0); j <= Math.ceil(y1); j++) pts.push([i, j]);
+  } else {
+    const c = Math.cos(30 * DEG);
+    for (let j = Math.floor(x0 / c) - 1; j <= Math.ceil(x1 / c) + 1; j++) {
+      const off = j * 0.5;
+      for (let i = Math.floor(y0 - off) - 1; i <= Math.ceil(y1 - off) + 1; i++) pts.push([j * c, i + off]);
+    }
+  }
+  return pts.length > 20000 ? [] : pts;
+}
+function drawEditor() {
+  if (!derived) return;
+  const r = editor.getBoundingClientRect(), g = ectx;
+  g.clearRect(0, 0, r.width, r.height);
+  g.fillStyle = '#0f1216'; g.fillRect(0, 0, r.width, r.height);
+  // Raster
+  g.fillStyle = '#2d3442';
+  for (const [x, y] of gridPoints()) { const [sx, sy] = W2S(x, y); g.fillRect(sx - 1, sy - 1, 2, 2); }
+  // Symmetrieachsen
+  const n = S.draw.sym || 1, [ox, oy] = W2S(0, 0);
+  if (n > 1) {
+    g.strokeStyle = '#232a35'; g.lineWidth = 1; g.setLineDash([4, 6]);
+    for (let i = 0; i < n; i++) { const d = (90 + i * 360 / n) * DEG; g.beginPath(); g.moveTo(ox, oy); g.lineTo(ox + Math.cos(d) * 2000, oy - Math.sin(d) * 2000); g.stroke(); }
+    g.setLineDash([]);
+  }
+  const vg = viewGen(), effGen = (compiled && compiled.effGen) || new Map();
+  const pitches = UI.pitches ? naturalPitches() : new Map();
+  const idx = copyIndex();
+  let playKey = null;
+  if (playIdx >= 0) { const op = derived.gens[vg].ops.find(o => o.i === playIdx); if (op) playKey = segKeyXY(op.x0, op.y0, op.x1, op.y1); }
+  for (const c of segCopies(S.draw)) {
+    const s = c.seg, eg = S.manual ? s.g : (effGen.get(s.id) ?? s.g);
+    const vis = eg <= vg, base = c.copy === 0;
+    const [ax, ay] = W2S(c.ax, c.ay), [bx, by] = W2S(c.bx, c.by);
+    const isSel = UI.sel === s.id, isHover = hover.seg && hover.seg.id === s.id;
+    const isPlay = playKey && playKey === segKeyXY(c.ax, c.ay, c.bx, c.by);
+    g.globalAlpha = (vis ? 1 : 0.18) * (base ? 1 : 0.45);
+    g.strokeStyle = isPlay ? '#ffffff' : genColor(s.g);
+    g.lineWidth = (s.t === 'G' ? 2.5 : 3.5) + (isSel || isHover ? 2 : 0) + (isPlay ? 2 : 0);
+    g.setLineDash(s.t === 'f' ? [5, 5] : []);
+    g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
+    g.setLineDash([]);
+    if (s.t === 'F') {
+      g.fillStyle = g.strokeStyle;
+      g.beginPath(); g.arc((ax + bx) / 2, (ay + by) / 2, isSel ? 5 : 4, 0, 7); g.fill();
+      const p = pitches.get(s.id + ':' + c.copy);
+      if (UI.pitches && p !== undefined && vis && view.scale >= 18) {
+        g.globalAlpha = base ? 1 : 0.6;
+        g.font = '11px ui-monospace,Consolas,monospace'; g.fillStyle = s.p !== null && s.p !== undefined ? '#ffd166' : '#cfd6e2';
+        const nx = -(by - ay), ny = bx - ax, nl = Math.hypot(nx, ny) || 1;
+        g.fillText(String(p), (ax + bx) / 2 + nx / nl * 9 - 4, (ay + by) / 2 + ny / nl * 9 + 4);
+      }
+    }
+    if (isSel) { g.globalAlpha = 1; g.strokeStyle = '#fff'; g.lineWidth = 1; g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke(); }
+  }
+  g.globalAlpha = 1;
+  // Knoten
+  const nodesSeen = new Set();
+  g.fillStyle = '#c9d3e0';
+  for (const c of segCopies(S.draw)) for (const [x, y] of [[c.ax, c.ay], [c.bx, c.by]]) {
+    const k = pkey(x, y); if (nodesSeen.has(k)) continue; nodesSeen.add(k);
+    const [sx, sy] = W2S(x, y); g.globalAlpha = c.copy === 0 ? 0.9 : 0.35; g.beginPath(); g.arc(sx, sy, 2.2, 0, 7); g.fill();
+  }
+  g.globalAlpha = 1;
+  // Startpunkt mit Startrichtung
+  g.strokeStyle = '#ff6b6b'; g.fillStyle = '#ff6b6b'; g.lineWidth = 2;
+  g.beginPath(); g.arc(ox, oy, 6, 0, 7); g.stroke();
+  const rd = S.code.rot * DEG;
+  g.beginPath(); g.moveTo(ox, oy); g.lineTo(ox + Math.cos(rd) * 16, oy - Math.sin(rd) * 16); g.stroke();
+  // Hover-Knoten
+  if (hover.node && UI.tool === 'draw') { const [sx, sy] = W2S(hover.node[0], hover.node[1]); g.strokeStyle = '#6cc4ff'; g.lineWidth = 2; g.beginPath(); g.arc(sx, sy, 7, 0, 7); g.stroke(); }
+  // Linie unter dem Mauszeiger (Radieren, Uebertragen, Auswaehlen) samt Endpunkten markieren, in allen Symmetrie-Kopien
+  if (hover.seg && UI.tool !== 'draw' && !pan) {
+    const col = UI.tool === 'erase' ? '#ff6b6b' : UI.tool === 'paint' ? genColor(UI.curGen) : '#ffffff';
+    g.strokeStyle = col; g.fillStyle = col;
+    for (const c of segCopies(S.draw)) {
+      if (c.seg.id !== hover.seg.id) continue;
+      const [ax, ay] = W2S(c.ax, c.ay), [bx, by] = W2S(c.bx, c.by);
+      g.globalAlpha = c.copy === 0 ? 1 : 0.45;
+      g.lineWidth = 2; g.setLineDash(UI.tool === 'erase' ? [6, 4] : []);
+      g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke(); g.setLineDash([]);
+      for (const [px, py] of [[ax, ay], [bx, by]]) { g.beginPath(); g.arc(px, py, 6, 0, 7); g.stroke(); }
+      if (UI.tool === 'erase' && c.copy === 0) {
+        const mx = (ax + bx) / 2, my = (ay + by) / 2;
+        g.lineWidth = 2.5; g.beginPath(); g.moveTo(mx - 5, my - 5); g.lineTo(mx + 5, my + 5); g.moveTo(mx + 5, my - 5); g.lineTo(mx - 5, my + 5); g.stroke();
+      }
+    }
+    g.globalAlpha = 1;
+  }
+  // Ziehen
+  if (drag && drag.steps > 0) {
+    const [sx, sy] = W2S(drag.x, drag.y), d = drag.dir * DEG;
+    const ex = drag.x + Math.cos(d) * drag.steps, ey = drag.y + Math.sin(d) * drag.steps, [tx, ty] = W2S(ex, ey);
+    g.strokeStyle = genColor(UI.curGen); g.globalAlpha = 0.8; g.lineWidth = 3; g.setLineDash(UI.type === 'f' ? [5, 5] : []);
+    g.beginPath(); g.moveTo(sx, sy); g.lineTo(tx, ty); g.stroke(); g.setLineDash([]);
+    if (S.draw.mirror) {
+      const [mx, my] = W2S(-drag.x, drag.y), [mx2, my2] = W2S(-ex, ey);
+      g.globalAlpha = 0.4; g.beginPath(); g.moveTo(mx, my); g.lineTo(mx2, my2); g.stroke();
+    }
+    g.globalAlpha = 1; g.fillStyle = '#fff'; g.font = '12px system-ui'; g.fillText(t(drag.steps > 1 ? 'drag.steps' : 'drag.step', { n: drag.steps }), tx + 8, ty - 8);
+  }
+  $('#hint').textContent = S.draw.segs.length ? (S.manual ? t('hint.manual') : '') : t('hint.empty');
+}
+
+/* ---------- Vorschau (norns) ---------- */
+function drawPreview() {
+  const g = pctx, K = 5, c = S.code, vg = viewGen();
+  g.fillStyle = '#000'; g.fillRect(0, 0, 640, 320);
+  const ops = derived.gens[vg].ops;
+  const drawPlant = (dx, col) => {
+    g.strokeStyle = col; g.fillStyle = col; g.lineWidth = K * 0.9;
+    for (const op of ops) {
+      if (op.c === 'f') continue;
+      const X0 = (c.x + dx + op.x0 * c.length) * K, Y0 = (c.y - op.y0 * c.length) * K;
+      const X1 = (c.x + dx + op.x1 * c.length) * K, Y1 = (c.y - op.y1 * c.length) * K;
+      const hot = op.i === playIdx;
+      if (hot) { g.strokeStyle = '#ff6b6b'; }
+      g.beginPath(); g.moveTo(X0, Y0); g.lineTo(X1, Y1); g.stroke();
+      if (op.c === 'F') { g.beginPath(); g.arc(X1, Y1, K, 0, 7); g.stroke(); }
+      if (hot) g.strokeStyle = col;
+    }
+  };
+  if (UI.plant2) drawPlant(32, '#5a5a5a');
+  drawPlant(-32, '#ffffff');
+}
+
+/* ---------- Treffer ---------- */
+function distToSeg(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1;
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+function hitSeg(sx, sy) {
+  let best = null, bd = 9;
+  for (const c of segCopies(S.draw)) {
+    const [ax, ay] = W2S(c.ax, c.ay), [bx, by] = W2S(c.bx, c.by), d = distToSeg(sx, sy, ax, ay, bx, by);
+    if (d < bd) { bd = d; best = c.seg; }
+  }
+  return best;
+}
+function hitNode(sx, sy) {
+  const cand = [[0, 0]];
+  for (const c of segCopies(S.draw)) cand.push([c.ax, c.ay], [c.bx, c.by]);
+  for (const p of gridPoints()) cand.push(p);
+  let best = null, bd = 11;
+  for (const [x, y] of cand) { const [px, py] = W2S(x, y), d = Math.hypot(px - sx, py - sy); if (d < bd) { bd = d; best = [x, y]; } }
+  return best;
+}
+
+/* ---------- Eigene Dialoge (die Browser-Dialoge confirm/alert sind in manchen Umgebungen gesperrt) ---------- */
+let dlgResolve = null;
+function ask(text, okLabel = t('ok.continue'), cancelLabel = t('btn.cancel')) {
+  if (dlgResolve) dlgResolve(false);
+  $('#dlgText').textContent = text;
+  $('#dlgOk').textContent = okLabel;
+  $('#dlgCancel').textContent = cancelLabel || '';
+  $('#dlgCancel').style.display = cancelLabel ? '' : 'none';
+  $('#dlg').classList.add('show');
+  $('#dlgOk').focus();
+  return new Promise(res => { dlgResolve = res; });
+}
+const info = text => ask(text, 'OK', null);
+function closeDlg(result) { $('#dlg').classList.remove('show'); const r = dlgResolve; dlgResolve = null; if (r) r(result); }
+$('#dlgOk').addEventListener('click', () => closeDlg(true));
+$('#dlgCancel').addEventListener('click', () => closeDlg(false));
+$('#dlg').addEventListener('click', e => { if (e.target.id === 'dlg') closeDlg(false); });
+$('#dlg').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); closeDlg(false); } if (e.key === 'Enter') { e.preventDefault(); closeDlg(true); } });
+
+/* ---------- Zeichnung aendern ---------- */
+const needsConfirm = () => S.manual && S.draw.segs.length > 0;
+function applyDrawing(mutate) {
+  pushUndo();
+  mutate();
+  recompileFromDrawing();
+  refreshCodeFields();
+  refresh();
+}
+function changeDrawing(mutate, onCancel) {
+  if (!needsConfirm()) { applyDrawing(mutate); return; }
+  drag = null;
+  ask(t('ask.change'), t('ok.change'))
+    .then(ok => { if (ok) applyDrawing(mutate); else { if (onCancel) onCancel(); refresh(); } });
+}
+function existingKeys() { const set = new Set(); for (const c of segCopies(S.draw)) set.add(segKeyXY(c.ax, c.ay, c.bx, c.by)); return set; }
+function baseNodeKeys() { const set = new Set([pkey(0, 0)]); for (const s of S.draw.segs) { set.add(pkey(s.ax, s.ay)); set.add(pkey(s.bx, s.by)); } return set; }
+function addSegments(list) {
+  // list: [{ax,ay,bx,by}] in Weltkoordinaten
+  const n = S.draw.sym || 1, all = [...list];
+  if (S.draw.mirror) for (const s of list) all.push({ ax: -s.ax, ay: s.ay, bx: -s.bx, by: s.by });
+  const keys = existingKeys(), nodesBase = baseNodeKeys();
+  const added = [];
+  for (let s of all) {
+    // bei Symmetrie in die Kopie drehen, die an den Grundarm anschliesst
+    if (n > 1) {
+      for (let i = 0; i < n; i++) {
+        const r = rotSeg(s, -i * 360 / n);
+        if (nodesBase.has(pkey(r.ax, r.ay)) || nodesBase.has(pkey(r.bx, r.by))) { s = r; break; }
+      }
+    }
+    const k = segKeyXY(s.ax, s.ay, s.bx, s.by);
+    if (keys.has(k)) continue;
+    const seg = { id: S.draw.nextId++, ax: s.ax, ay: s.ay, bx: s.bx, by: s.by, t: UI.type, g: UI.curGen, p: null };
+    S.draw.segs.push(seg); added.push(seg);
+    for (let i = 0; i < n; i++) { const r = rotSeg(seg, i * 360 / n); keys.add(segKeyXY(r.ax, r.ay, r.bx, r.by)); }
+    nodesBase.add(pkey(seg.ax, seg.ay)); nodesBase.add(pkey(seg.bx, seg.by));
+  }
+  return added;
+}
+
+/* ---------- Maus ---------- */
+editor.addEventListener('contextmenu', e => e.preventDefault());
+editor.addEventListener('mousedown', e => {
+  const r = editor.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+  if (e.button === 1 || e.button === 2 || (e.button === 0 && e.altKey)) { pan = { sx, sy, px: view.panX, py: view.panY }; return; }
+  if (e.button !== 0) return;
+  if (UI.tool === 'draw') {
+    const nd = hitNode(sx, sy);
+    if (nd) drag = { x: nd[0], y: nd[1], dir: 90, steps: 0 };
+  } else if (UI.tool === 'select') {
+    const s = hitSeg(sx, sy); UI.sel = s ? s.id : null; refresh();
+  } else if (UI.tool === 'erase') {
+    const s = hitSeg(sx, sy), confirmFirst = needsConfirm();
+    if (s) { hover.seg = null; changeDrawing(() => { S.draw.segs = S.draw.segs.filter(x => x.id !== s.id); if (UI.sel === s.id) UI.sel = null; }); }
+    drag = confirmFirst ? null : { erase: true };
+  } else if (UI.tool === 'paint') {
+    const s = hitSeg(sx, sy), confirmFirst = needsConfirm();
+    if (s && (s.t !== UI.type || s.g !== UI.curGen)) changeDrawing(() => { s.t = UI.type; s.g = UI.curGen; if (s.t !== 'F') s.p = null; });
+    drag = confirmFirst ? null : { paint: true };
+  }
+});
+window.addEventListener('mousemove', e => {
+  const r = editor.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+  if (pan) { view.panX = pan.px + sx - pan.sx; view.panY = pan.py + sy - pan.sy; drawEditor(); return; }
+  if (drag && drag.erase) { const s = hitSeg(sx, sy); if (s) { hover.seg = null; S.draw.segs = S.draw.segs.filter(x => x.id !== s.id); recompileFromDrawing(); refreshCodeFields(); refresh(); } return; }
+  if (drag && drag.paint) { const s = hitSeg(sx, sy); if (s && (s.t !== UI.type || s.g !== UI.curGen)) { s.t = UI.type; s.g = UI.curGen; if (s.t !== 'F') s.p = null; recompileFromDrawing(); refreshCodeFields(); refresh(); } return; }
+  if (drag) {
+    const [wx, wy] = S2W(sx, sy), dx = wx - drag.x, dy = wy - drag.y, len = Math.hypot(dx, dy);
+    const ang = Math.atan2(dy, dx) / DEG;
+    let bestD = 90, bd = 1e9;
+    for (const d of dirs()) { const diff = Math.abs(((ang - d) % 360 + 540) % 360 - 180); if (diff < bd) { bd = diff; bestD = d; } }
+    drag.dir = bestD; drag.steps = len < 0.35 ? 0 : Math.max(1, Math.round(len));
+    drawEditor(); return;
+  }
+  if (e.target !== editor) return;
+  const prev = hover;
+  hover = { seg: UI.tool === 'draw' ? null : hitSeg(sx, sy), node: UI.tool === 'draw' ? hitNode(sx, sy) : null };
+  if (prev.seg !== hover.seg || String(prev.node) !== String(hover.node)) drawEditor();
+});
+window.addEventListener('mouseup', () => {
+  if (pan) { pan = null; return; }
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.erase || d.paint) { refresh(); return; }
+  if (d.steps > 0) {
+    const list = [], rd = d.dir * DEG;
+    for (let k = 0; k < d.steps; k++) {
+      list.push({ ax: d.x + Math.cos(rd) * k, ay: d.y + Math.sin(rd) * k, bx: d.x + Math.cos(rd) * (k + 1), by: d.y + Math.sin(rd) * (k + 1) });
+    }
+    changeDrawing(() => addSegments(list));
+  } else drawEditor();
+});
+editor.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = editor.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+  const [wx, wy] = S2W(sx, sy);
+  view.scale = Math.max(6, Math.min(120, view.scale * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+  const [nx, ny] = W2S(wx, wy);
+  view.panX += sx - nx; view.panY += sy - ny;
+  drawEditor();
+}, { passive: false });
+
+/* ---------- Werkzeuge und Eingaben ---------- */
+function setTool(t) { UI.tool = t; hover = { seg: null, node: null }; $$('#tools button').forEach(b => b.classList.toggle('on', b.dataset.tool === t)); editor.style.cursor = t === 'draw' ? 'crosshair' : 'pointer'; refresh(); }
+function setType(t) { UI.type = t; $$('#types button').forEach(b => b.classList.toggle('on', b.dataset.type === t)); }
+$$('#tools button').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+$$('#types button').forEach(b => b.addEventListener('click', () => setType(b.dataset.type)));
+$('#curGen').addEventListener('input', e => { UI.curGen = Math.max(0, parseInt(e.target.value, 10) || 0); renderLegend(); });
+$('#angleSel').addEventListener('change', async e => {
+  const a = +e.target.value;
+  if (S.draw.segs.length) {
+    e.target.value = S.code.angle;
+    if (!await ask(t('ask.angle'), t('ok.angle'))) return;
+  }
+  pushUndo();
+  S.draw.segs = []; S.code.angle = a; S.manual = false; UI.sel = null;
+  syncFromState();
+});
+$('#symSel').addEventListener('change', e => { const v = +e.target.value; changeDrawing(() => { S.draw.sym = v; }, () => { e.target.value = S.draw.sym; }); });
+$('#mirrorChk').addEventListener('change', e => { S.draw.mirror = e.target.checked; persist(); });
+$('#mirrorPitchChk').addEventListener('change', e => { const v = e.target.checked; changeDrawing(() => { S.draw.mirrorPitch = v; }, () => { e.target.checked = !v; }); });
+$('#gridChk').addEventListener('change', e => { UI.grid = e.target.checked; drawEditor(); });
+$('#pitchChk').addEventListener('change', e => { UI.pitches = e.target.checked; drawEditor(); });
+$('#plant2Chk').addEventListener('change', e => { UI.plant2 = e.target.checked; drawPreview(); });
+$('#btnCenter').addEventListener('click', () => { view.panX = 0; view.panY = 40; view.scale = 34; drawEditor(); });
+$('#viewGen').addEventListener('input', e => { UI.viewGen = +e.target.value === derived.gens.length - 1 ? null : +e.target.value; refresh(); });
+
+// Linien-Panel
+$$('#segPanel [data-st]').forEach(b => b.addEventListener('click', () => { const s = selectedSeg(); if (s) changeDrawing(() => { s.t = b.dataset.st; if (s.t !== 'F') s.p = null; }); }));
+$('#segGen').addEventListener('change', e => { const s = selectedSeg(); if (s) changeDrawing(() => { s.g = Math.max(0, parseInt(e.target.value, 10) || 0); }); });
+$('#segPitchChk').addEventListener('change', e => { const s = selectedSeg(); if (s) changeDrawing(() => { s.p = e.target.checked ? Math.max(1, Math.min(TOP, parseInt($('#segPitch').value, 10) || 12)) : null; }); });
+$('#segPitch').addEventListener('change', e => { const s = selectedSeg(); if (s && s.p !== null) changeDrawing(() => { s.p = Math.max(1, Math.min(TOP, parseInt(e.target.value, 10) || 12)); }); });
+$('#segDel').addEventListener('click', () => { const s = selectedSeg(); if (s) changeDrawing(() => { S.draw.segs = S.draw.segs.filter(x => x.id !== s.id); UI.sel = null; }); });
+
+// Code-Panel
+function parseRules(text) {
+  const out = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/^\s*(\S)\s*(?:=|→|->|:)\s*(.*?)\s*$/);
+    if (m) out.push([m[1], m[2].replace(/\s+/g, '')]);
+  }
+  return out;
+}
+function codeEdited(markManual) {
+  const c = S.code;
+  pushUndo();
+  c.angle = parseFloat($('#cAngle').value) || 0;
+  c.length = parseFloat($('#cLength').value) || 0;
+  c.rot = parseFloat($('#cRot').value) || 0;
+  c.x = parseFloat($('#cX').value) || 0; c.y = parseFloat($('#cY').value) || 0;
+  c.maxGen = Math.max(1, Math.min(30, parseInt($('#cMax').value, 10) || 1));
+  c.startGen = Math.max(0, Math.min(c.maxGen, parseInt($('#cStart').value, 10) || 0));
+  c.axiom = $('#cAxiom').value.replace(/\s+/g, '');
+  c.rules = parseRules($('#cRules').value);
+  if (markManual) { S.manual = true; S.manualReason = 'edit'; }
+  $('#angleSel').value = [30, 45, 60, 90].includes(c.angle) ? String(c.angle) : '';
+  refresh();
+}
+for (const id of ['#cLength', '#cX', '#cY', '#cStart']) $(id).addEventListener('change', () => codeEdited(false));
+for (const id of ['#cAngle', '#cRot', '#cMax']) $(id).addEventListener('change', () => codeEdited(true));
+for (const id of ['#cAxiom', '#cRules']) $(id).addEventListener('change', () => codeEdited(true));
+$('#plantName').addEventListener('change', e => { S.name = (e.target.value || 'pflanze').replace(/[^\w\-äöüÄÖÜß]+/g, '_'); e.target.value = S.name; persist(); });
+$('#btnRecompile').addEventListener('click', async () => {
+  if (S.manual && !await ask(t('ask.recompile'), t('ok.recompile'))) return;
+  pushUndo(); recompileFromDrawing(); refreshCodeFields(); refresh();
+});
+$('#btnToDrawing').addEventListener('click', async () => {
+  if (![30, 45, 60, 90].includes(+S.code.angle)) { info(t('info.angles')); return; }
+  if (S.draw.segs.length && !await ask(t('ask.replace'), t('ok.replace'))) return;
+  pushUndo(); buildDrawingFromCode(); refresh();
+});
+function buildDrawingFromCode() {
+  const segs = drawingFromCode(S.code);
+  // Import: Toene wie im Code lassen, Angleichung erst auf Wunsch
+  S.draw = { sym: 1, mirror: false, mirrorPitch: false, segs: [...segs], armOffsets: '', nextId: segs.length + 1 };
+  UI.notice = segs.vanished ? 'notice.vanished' : '';
+  fillSym();
+  $('#mirrorChk').checked = false;
+  $('#mirrorPitchChk').checked = false;
+  UI.sel = null;
+}
+$('#btnFit').addEventListener('click', () => {
+  const ops = derived.gens[derived.gens.length - 1].ops.filter(o => o.c !== 'f');
+  if (!ops.length) return;
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  for (const o of ops) for (const [x, y] of [[o.x0, o.y0], [o.x1, o.y1]]) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const w = x1 - x0 || 1, h = y1 - y0 || 1;
+  pushUndo();
+  S.code.length = Math.max(1, Math.min(8, Math.floor(Math.min(54 / w, 44 / h) * 2) / 2));
+  S.code.x = Math.round((64 - (x0 + x1) / 2 * S.code.length) * 2) / 2;
+  S.code.y = Math.round((37 + (y0 + y1) / 2 * S.code.length) * 2) / 2;
+  syncFromState();
+});
+
+// Klang-Einstellungen
+$('#scaleSel').addEventListener('change', e => { UI.scale = +e.target.value; renderMelody(); persist(); });
+$('#rootNote').addEventListener('change', e => { UI.root = parseInt(e.target.value, 10) || 45; renderMelody(); persist(); });
+$('#noteScalar').addEventListener('change', e => {
+  UI.ns = Math.max(0, parseFloat(e.target.value) || 0);
+  if (!S.manual) { recompileFromDrawing(); refreshCodeFields(); }
+  refresh();
+});
+$('#noteMs').addEventListener('change', e => { UI.ms = Math.max(40, parseInt(e.target.value, 10) || 250); persist(); });
+$('#loopChk').addEventListener('change', e => { UI.loop = e.target.checked; });
+
+/* ---------- Klang ---------- */
+let actx = null, timers = [], voices = [];
+function tone(midi, t, dur) {
+  const o = actx.createOscillator(), g = actx.createGain(), f = actx.createBiquadFilter();
+  o.type = 'triangle'; o.frequency.value = 440 * Math.pow(2, (midi - 69) / 12);
+  f.type = 'lowpass'; f.frequency.value = 2400;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.22, t + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.001, t + Math.max(0.08, dur * 0.95));
+  o.connect(f); f.connect(g); g.connect(actx.destination);
+  o.start(t); o.stop(t + dur + 0.05);
+  voices.push(o);
+}
+function stopSound() {
+  timers.forEach(clearTimeout); timers = [];
+  voices.forEach(v => { try { v.stop(); } catch (e) { /* schon beendet */ } }); voices = [];
+  playIdx = -1; $('#btnPlay').classList.remove('on');
+  highlightMelody(-1); drawEditor(); drawPreview();
+}
+function highlightMelody(i) { $$('#melody span').forEach(sp => sp.classList.toggle('cur', +sp.dataset.i === i)); }
+function play() {
+  stopSound();
+  if (!actx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) { info(t('info.noaudio')); return; } actx = new AC(); }
+  if (actx.state === 'suspended') actx.resume();
+  const ev = derived.gens[viewGen()].ev;
+  if (!ev.length) return;
+  const notes = scaleNotes(UI.root, UI.scale), dur = UI.ms / 1000;
+  const t0 = actx.currentTime + 0.06;
+  $('#btnPlay').classList.add('on');
+  ev.forEach((e, k) => {
+    const t = t0 + k * dur;
+    if (!e.rest) { const pi = playableIndex(e.note); if (pi) tone(notes[pi - 1], t, dur); }
+    timers.push(setTimeout(() => { playIdx = e.i; highlightMelody(e.i); drawEditor(); drawPreview(); }, (t - actx.currentTime) * 1000));
+  });
+  timers.push(setTimeout(() => { if (UI.loop) play(); else stopSound(); }, (t0 + ev.length * dur - actx.currentTime) * 1000 + 30));
+}
+$('#btnPlay').addEventListener('click', play);
+$('#btnStop').addEventListener('click', stopSound);
+
+/* ---------- Datei, Export, Beispiele ---------- */
+function loadPlant(text, name) {
+  const p = parseFlora(text);
+  pushUndo();
+  S.name = name || 'pflanze';
+  S.code = { angle: p.angle, length: p.length, rot: p.rot, x: p.x, y: p.y, maxGen: Math.max(1, p.maxGen), startGen: p.startGen, axiom: p.axiom, rules: p.rules };
+  S.manual = true; S.manualReason = 'file'; UI.notice = '';
+  if (p.editor && Array.isArray(p.editor.segs)) {
+    // mit dem Editor gespeichert: Zeichnung exakt wiederherstellen und pruefen, ob der Code noch dazu passt
+    S.draw = drawingFromMeta(p.editor);
+    if (p.editor.ns !== undefined) UI.ns = +p.editor.ns;
+    try {
+      const cc = compileDrawing(S.draw, S.code.angle, UI.ns);
+      const same = cc.axiom === p.axiom && JSON.stringify(cc.rules) === JSON.stringify(p.rules) && cc.maxGen === Math.max(1, p.maxGen);
+      if (same) { S.manual = false; S.manualReason = ''; }
+      else S.manualReason = 'mismatch';
+    } catch (e) { S.manualReason = 'mismatch'; }
+  } else if ([30, 45, 60, 90].includes(+p.angle) && Math.abs(p.rot - 90) < 1e-9) {
+    buildDrawingFromCode();
+    // aeltere Datei ohne Zeichnungsdaten: verknuepfen, wenn der Editor genau diesen Code erzeugen wuerde
+    try {
+      const cc = compileDrawing(S.draw, S.code.angle, UI.ns);
+      if (cc.axiom === p.axiom && JSON.stringify(cc.rules) === JSON.stringify(p.rules) && cc.maxGen === Math.max(1, p.maxGen)) { S.manual = false; S.manualReason = ''; }
+    } catch (e) { /* bleibt unverknuepft */ }
+  } else S.draw = { sym: 1, mirror: false, segs: [], armOffsets: '', nextId: 1 };
+  UI.viewGen = null; UI.sel = null;
+  syncFromState();
+}
+function download(name, text) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+function showText(title, text) {
+  $('#modalTitle').textContent = title;
+  $('#modalBody').innerHTML = '';
+  const ta = document.createElement('textarea'); ta.value = text; ta.readOnly = true; $('#modalBody').appendChild(ta);
+  $('#modalCopy').style.display = '';
+  $('#modal').classList.add('show'); ta.select();
+}
+function showHelp() {
+  $('#modalTitle').textContent = t('modal.help');
+  $('#modalBody').innerHTML = `<div style="max-height:60vh;overflow:auto">${t('help', { max: MAX_LEN })}</div>`;
+  $('#modalCopy').style.display = 'none';
+  $('#modal').classList.add('show');
+}
+$('#modalClose').addEventListener('click', () => $('#modal').classList.remove('show'));
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') $('#modal').classList.remove('show'); });
+$('#modalCopy').addEventListener('click', async () => {
+  const ta = $('#modalBody textarea'); if (!ta) return;
+  try { await navigator.clipboard.writeText(ta.value); $('#modalCopy').textContent = t('btn.copied'); }
+  catch (e) { ta.select(); document.execCommand('copy'); $('#modalCopy').textContent = t('btn.copied'); }
+  setTimeout(() => { $('#modalCopy').textContent = t('btn.copy'); }, 1500);
+});
+// Zeichnung nur mitspeichern, wenn der Code aus ihr erzeugt ist (sonst passt sie nicht zum Code)
+const saveFile = () => download(S.name + '.flora', toFlora(S.code, S.manual ? null : drawingMeta(S.draw, UI.ns)));
+$('#btnSave').addEventListener('click', saveFile);
+$('#btnSave2').addEventListener('click', saveFile);
+$('#btnMaiden').addEventListener('click', () => showText(t('modal.maiden'), toMaiden(S.code, S.name)));
+$('#btnCatalog').addEventListener('click', () => showText(t('modal.catalog'), toCatalog(S.code, S.name)));
+$('#btnOpen').addEventListener('click', () => $('#fileInput').click());
+$('#fileInput').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { loadPlant(await f.text(), f.name.replace(/\.[^.]*$/, '')); } catch (err) { info(t('info.readerr', { msg: err.message })); }
+  e.target.value = '';
+});
+$('#exampleSel').addEventListener('change', e => {
+  const n = e.target.value; e.target.value = '';
+  if (n && EXAMPLES[n]) loadPlant(EXAMPLES[n], n);
+});
+$('#btnNew').addEventListener('click', async () => {
+  if ((S.draw.segs.length || S.code.axiom) && !await ask(t('ask.new'), t('ok.new'))) return;
+  stopSound(); pushUndo(); S = freshState(); UI.viewGen = null; UI.sel = null; UI.notice = ''; syncFromState();
+});
+$('#btnUndo').addEventListener('click', undo);
+$('#btnRedo').addEventListener('click', redo);
+$('#btnHelp').addEventListener('click', showHelp);
+window.addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+  if ($('#dlg').classList.contains('show')) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
+  if (e.key === 'Escape') { drag = null; $('#modal').classList.remove('show'); drawEditor(); return; }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedSeg()) { const s = selectedSeg(); changeDrawing(() => { S.draw.segs = S.draw.segs.filter(x => x.id !== s.id); UI.sel = null; }); return; }
+  const k = e.key.toLowerCase();
+  if (k === 'd') setTool('draw'); else if (k === 's') setTool('select'); else if (k === 'p') setTool('paint'); else if (k === 'e') setTool('erase');
+  else if (k === '1') setType('F'); else if (k === '2') setType('G'); else if (k === '3') setType('f');
+  else if (k === ' ') { e.preventDefault(); playIdx >= 0 ? stopSound() : play(); }
+});
+window.addEventListener('resize', resizeEditor);
+
+/* ---------- Sprache umschalten ---------- */
+function applyI18n() {
+  document.documentElement.lang = LANG;
+  document.title = t('app.title');
+  $$('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  $$('[data-i18n-html]').forEach(el => { el.innerHTML = t(el.dataset.i18nHtml); });
+  $$('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
+  $('#langSel').value = LANG;
+  fillScaleNames();
+}
+$('#langSel').addEventListener('change', e => {
+  LANG = LANGS.includes(e.target.value) ? e.target.value : 'en';
+  // unveraenderten Standardnamen mit uebersetzen
+  if (LANGS.some(l => I18N[l]['default.name'] === S.name)) S.name = t('default.name');
+  applyI18n();
+  if ($('#modal').classList.contains('show') && $('#modalCopy').style.display === 'none') showHelp();
+  syncFromState();
+});
+
+/* ---------- Selbsttest (Konsole: floraSelfTest()) ---------- */
+function geomSet(code, gen) {
+  const gens = grow(code.axiom, code.rules, code.maxGen);
+  const set = new Set();
+  for (const op of trace(gens[Math.min(gen, gens.length - 1)].s, code.angle, 90)) if (op.c !== 'f') set.add(segKeyXY(op.x0, op.y0, op.x1, op.y1));
+  return set;
+}
+const sameSet = (a, b) => a.size === b.size && [...a].every(x => b.has(x));
+window.floraSelfTest = function () {
+  const res = [];
+  for (const [name, text] of Object.entries(EXAMPLES)) {
+    const p = parseFlora(text);
+    const code = { angle: p.angle, axiom: p.axiom, rules: p.rules, maxGen: p.maxGen };
+    const segs = drawingFromCode(code);
+    const D = { sym: 1, mirror: false, segs, armOffsets: '' };
+    const cc = compile(D, p.angle, 3);
+    const code2 = { angle: p.angle, axiom: cc.axiom, rules: cc.rules, maxGen: cc.maxGen };
+    const gensOk = [];
+    for (let g = 0; g <= p.maxGen; g++) gensOk.push(sameSet(geomSet(code, g), geomSet(code2, g)));
+    const len = grow(code2.axiom, code2.rules, code2.maxGen).map(x => x.s.length);
+    res.push({ name, endform: gensOk[gensOk.length - 1], verschwindend: segs.vanished, generationen: gensOk.map(b => b ? 'j' : 'N').join(''), laengen: len.join('/'), maxGen: `${p.maxGen}/${cc.maxGen}` });
+  }
+  return res;
+};
+
+/* ---------- Beispiele ---------- */
+const EXAMPLES = /*EXAMPLES*/{"snowflake_dendrite":"return {\n-- Table: {1}\n{\n   [\"angle\"]=60,\n   [\"axiom\"]=\"[FA]+[FA]++[FA]+[FA]+[FA]|[FA]\",\n   [\"initial_turtle_rotation\"]=90,\n   [\"length\"]=4,\n   [\"max_generations\"]=3,\n   [\"ruleset\"]={2},\n   [\"start_from\"]={3},\n   [\"starting_generation\"]=3,\n},\n-- Table: {2}\n{\n   {4},\n   {5},\n   {6},\n},\n-- Table: {3}\n{\n   [\"x\"]=64,\n   [\"y\"]=37,\n},\n-- Table: {4}\n{\n   \"A\",\n   \"F[+F][-F]N\",\n},\n-- Table: {5}\n{\n   \"N\",\n   \"G+-+-F[+F][-F]M\",\n},\n-- Table: {6}\n{\n   \"M\",\n   \"F\",\n}\n}","snowflake_diamond":"return {\n-- Table: {1}\n{\n   [\"angle\"]=30,\n   [\"axiom\"]=\"[FA]++[FA]++++[FA]|--[FA]|[FA]++++[FA]\",\n   [\"initial_turtle_rotation\"]=90,\n   [\"length\"]=4,\n   [\"max_generations\"]=3,\n   [\"ruleset\"]={2},\n   [\"start_from\"]={3},\n   [\"starting_generation\"]=3,\n},\n-- Table: {2}\n{\n   {4},\n   {5},\n   {6},\n},\n-- Table: {3}\n{\n   [\"x\"]=64,\n   [\"y\"]=37,\n},\n-- Table: {4}\n{\n   \"A\",\n   \"F[++F][--F]B\",\n},\n-- Table: {5}\n{\n   \"B\",\n   \"GN\",\n},\n-- Table: {6}\n{\n   \"N\",\n   \"GF|[+F--F]-F++F\",\n}\n}","snowflake_fern":"return {\n-- Table: {1}\n{\n   [\"angle\"]=60,\n   [\"axiom\"]=\"[FA]-[FA]--[FA]-[FA]-[FA]|[FA]\",\n   [\"initial_turtle_rotation\"]=90,\n   [\"length\"]=4,\n   [\"max_generations\"]=4,\n   [\"ruleset\"]={2},\n   [\"start_from\"]={3},\n   [\"starting_generation\"]=4,\n},\n-- Table: {2}\n{\n   {4},\n   {5},\n   {6},\n   {7},\n},\n-- Table: {3}\n{\n   [\"x\"]=64,\n   [\"y\"]=37,\n},\n-- Table: {4}\n{\n   \"A\",\n   \"G[+F][-F]B\",\n},\n-- Table: {5}\n{\n   \"B\",\n   \"F[+GF][-GF]M\",\n},\n-- Table: {6}\n{\n   \"M\",\n   \"G[+F][-F]N\",\n},\n-- Table: {7}\n{\n   \"N\",\n   \"F\",\n}\n}","snowflake_hollow_star":"return {\n-- Table: {1}\n{\n   [\"angle\"]=60,\n   [\"axiom\"]=\"f[A]--F+[A]--+-F+[A]--+-+-F+[A]--+-+-+-F+[A]--+-+-F+[A]--+-F+\",\n   [\"initial_turtle_rotation\"]=90,\n   [\"length\"]=4,\n   [\"max_generations\"]=3,\n   [\"ruleset\"]={2},\n   [\"start_from\"]={3},\n   [\"starting_generation\"]=3,\n},\n-- Table: {2}\n{\n   {4},\n   {5},\n   {6},\n},\n-- Table: {3}\n{\n   [\"x\"]=64,\n   [\"y\"]=37,\n},\n-- Table: {4}\n{\n   \"A\",\n   \"GF[+GF][-GF]B\",\n},\n-- Table: {5}\n{\n   \"B\",\n   \"+-+-F[+F][-F]M\",\n},\n-- Table: {6}\n{\n   \"M\",\n   \"F\",\n}\n}","snowflake_ice_crown":"return {\n-- Table: {1}\n{\n   [\"angle\"]=60,\n   [\"axiom\"]=\"[FA]++[FA]-[FA]|[FA]-[FA]++[FA]\",\n   [\"initial_turtle_rotation\"]=90,\n   [\"length\"]=3.5,\n   [\"max_generations\"]=5,\n   [\"ruleset\"]={2},\n   [\"start_from\"]={3},\n   [\"starting_generation\"]=5,\n},\n-- Table: {2}\n{\n   {4},\n   {5},\n   {6},\n   {7},\n   {8},\n},\n-- Table: {3}\n{\n   [\"x\"]=64,\n   [\"y\"]=37,\n},\n-- Table: {4}\n{\n   \"A\",\n   \"[+G][-G]GB\",\n},\n-- Table: {5}\n{\n   \"B\",\n   \"[+G][-F]GM\",\n},\n-- Table: {6}\n{\n   \"M\",\n   \"[+G][-G]GN\",\n},\n-- Table: {7}\n{\n   \"N\",\n   \"[+F][-G]GO\",\n},\n-- Table: {8}\n{\n   \"O\",\n   \"F[|+F]|-F\",\n}\n}","snowflake_ornament":"return {\n-- Table: {1}\n{\n   [\"angle\"]=60,\n   [\"axiom\"]=\"Aff[]|---++GF+GF+GF[]+GF+GF+GF-B\",\n   [\"initial_turtle_rotation\"]=90,\n   [\"length\"]=4,\n   [\"max_generations\"]=2,\n   [\"ruleset\"]={2},\n   [\"start_from\"]={3},\n   [\"starting_generation\"]=2,\n},\n-- Table: {2}\n{\n   {4},\n   {5},\n   {6},\n},\n-- Table: {3}\n{\n   [\"x\"]=64,\n   [\"y\"]=37,\n},\n-- Table: {4}\n{\n   \"A\",\n   \"[GGF[+F][-F]F]+[GG+-F[+F][-F]F]+[GG+-+-F[+F][-F]F]+[GG+-+-+-F[+F][-F]F]+[GG+-+-F[+F][-F]F]+[GG+-F[+F][-F]F]+\",\n},\n-- Table: {5}\n{\n   \"B\",\n   \"M\",\n},\n-- Table: {6}\n{\n   \"M\",\n   \"fff[]|+++--GGGGF-GGGGF-GGGGF-GGGGF-GGGGF-GGGGF+\",\n}\n}","snowflake_pinnate":"return {\n-- Table: {1}\n{\n   [\"angle\"]=30,\n   [\"axiom\"]=\"[FA]++[FA]|--[FA]++++[FA]|[FA]|--[FA]\",\n   [\"initial_turtle_rotation\"]=90,\n   [\"length\"]=3.5,\n   [\"max_generations\"]=3,\n   [\"ruleset\"]={2},\n   [\"start_from\"]={3},\n   [\"starting_generation\"]=3,\n},\n-- Table: {2}\n{\n   {4},\n   {5},\n   {6},\n},\n-- Table: {3}\n{\n   [\"x\"]=64,\n   [\"y\"]=37,\n},\n-- Table: {4}\n{\n   \"A\",\n   \"+-F[+F][-F]B\",\n},\n-- Table: {5}\n{\n   \"B\",\n   \"G+-F[+F][-F]M\",\n},\n-- Table: {6}\n{\n   \"M\",\n   \"GG+-+-F\",\n}\n}","snowflake_platelet":"return {\n-- Table: {1}\n{\n   [\"angle\"]=60,\n   [\"axiom\"]=\"f|+++--F-F-F-F-F-F+A\",\n   [\"initial_turtle_rotation\"]=90,\n   [\"length\"]=4,\n   [\"max_generations\"]=2,\n   [\"ruleset\"]={2},\n   [\"start_from\"]={3},\n   [\"starting_generation\"]=2,\n},\n-- Table: {2}\n{\n   {4},\n   {5},\n},\n-- Table: {3}\n{\n   [\"x\"]=64,\n   [\"y\"]=37,\n},\n-- Table: {4}\n{\n   \"A\",\n   \"ff[]+-+-+-+-+-+-+-++GGF+GGF+GGF+GGF+GGF+GGF-M\",\n},\n-- Table: {5}\n{\n   \"M\",\n   \"ff[]|+++--GGGGF-GGGGF-GGGGF-GGGGF-GGGGF-GGGGF+\",\n}\n}","snowflake_rosette":"return {\n-- Table: {1}\n{\n   [\"angle\"]=60,\n   [\"axiom\"]=\"[GFA]++[GFA]-[GFA]|[GFA]-[GFA]++[GFA]\",\n   [\"initial_turtle_rotation\"]=90,\n   [\"length\"]=4,\n   [\"max_generations\"]=3,\n   [\"ruleset\"]={2},\n   [\"start_from\"]={3},\n   [\"starting_generation\"]=3,\n},\n-- Table: {2}\n{\n   {4},\n   {5},\n   {6},\n},\n-- Table: {3}\n{\n   [\"x\"]=64,\n   [\"y\"]=37,\n},\n-- Table: {4}\n{\n   \"A\",\n   \"[+F][-F]GFB\",\n},\n-- Table: {5}\n{\n   \"B\",\n   \"-F+F+F+F+G+GM\",\n},\n-- Table: {6}\n{\n   \"M\",\n   \"++GF\",\n}\n}","snowflake_star":"return {\n-- Table: {1}\n{\n   [\"angle\"]=30,\n   [\"axiom\"]=\"[[]AF[|+F]|-F]++[[]+-AF[|+F]|-F]++[[]+-+-AF[|+F]|-F]++[[]+-+-+-+-AF[|+F]|-F]++[[]+-+-AF[|+F]|-F]++[[]+-AF[|+F]|-F]\",\n   [\"initial_turtle_rotation\"]=90,\n   [\"length\"]=4,\n   [\"max_generations\"]=4,\n   [\"ruleset\"]={2},\n   [\"start_from\"]={3},\n   [\"starting_generation\"]=4,\n},\n-- Table: {2}\n{\n   {4},\n},\n-- Table: {3}\n{\n   [\"x\"]=64,\n   [\"y\"]=37,\n},\n-- Table: {4}\n{\n   \"A\",\n   \"GA\",\n}\n}"}/*END*/;
+
+/* ---------- Start ---------- */
+fillSelects();
+applyI18n();
+if (!restore()) S = freshState();
+syncFromState();
+resizeEditor();
+</script>
+</body>
+</html>
