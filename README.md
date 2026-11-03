@@ -6,7 +6,7 @@ A standalone web app for designing plants for [Flora](https://github.com/jasekni
 You draw the shape and the app writes the L-system for you: axiom, rules, growth stages and melody.
 It shows a norns preview, plays the melody and exports a ready-to-use `.flora` file.
 
-Everything is in a single file, `index.html`. There is nothing to install or build, and it works offline.
+It is plain HTML, CSS and JavaScript: `index.html` plus the `css/` and `js/` folders. There is nothing to install or build, and it works offline.
 
 ## Quick start
 
@@ -21,11 +21,24 @@ Use the 🌐 menu in the top right to switch between English, German, Spanish an
 ## Hosting on the web
 
 The app is a static page with `index.html` as its entry point, so any web server or static host can serve it
-(e.g. GitHub Pages, Netlify or your own server). Upload `index.html`; the README files are optional.
+(e.g. GitHub Pages, Netlify or your own server). Upload `index.html` together with the `css/` and `js/` folders; the README files are optional.
 There is no server-side code, and the app loads nothing from other servers.
 
 - **HTTPS** is recommended: there the app copies with the browser's clipboard interface. On plain HTTP it falls back to an older copy method; everything else works the same.
 - What the app remembers is stored in each visitor's own browser, separately for every web address.
+
+## Project structure
+
+| Path | Contents |
+|---|---|
+| `index.html` | Page layout, entry point |
+| `css/style.css` | Styles (dark theme, layout) |
+| `js/i18n.js` | Translations (en, de, es, fr) and `t()` |
+| `js/flora-core.js` | Flora simulation (L-system, turtle, pitch), `.flora` format and the compiler from drawing to code – no user-interface code |
+| `js/examples.js` | The ten built-in snowflakes |
+| `js/app.js` | User interface: state, editor, preview, sound, files and export |
+
+The scripts are loaded as plain scripts (not ES modules) in this order, so the app also runs when `index.html` is opened directly from disk.
 
 ## Features
 

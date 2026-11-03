@@ -6,7 +6,7 @@ Une application web autonome pour créer des plantes pour [Flora](https://github
 Tu dessines la forme et l'application écrit le système L : axiome, règles, étapes de croissance et mélodie.
 Elle affiche un aperçu du norns, joue la mélodie et exporte un fichier `.flora` prêt à l'emploi.
 
-Tout tient dans un seul fichier, `index.html`. Il n'y a rien à installer ni à compiler, et l'application fonctionne hors ligne.
+C'est du HTML, du CSS et du JavaScript purs : `index.html` plus les dossiers `css/` et `js/`. Il n'y a rien à installer ni à compiler, et l'application fonctionne hors ligne.
 
 ## Démarrage rapide
 
@@ -21,11 +21,24 @@ Le menu 🌐 en haut à droite permet de passer de l'anglais à l'allemand, à l
 ## Publier sur le web
 
 L'application est une page statique avec `index.html` comme point d'entrée. N'importe quel serveur web ou hébergeur statique peut la servir,
-p. ex. GitHub Pages, Netlify ou ton propre serveur. Mets en ligne `index.html` ; les fichiers README sont facultatifs.
+p. ex. GitHub Pages, Netlify ou ton propre serveur. Mets en ligne `index.html` avec les dossiers `css/` et `js/` ; les fichiers README sont facultatifs.
 Il n'y a pas de code côté serveur, et l'application ne charge rien depuis d'autres serveurs.
 
 - **HTTPS** est recommandé : l'application y copie via l'interface presse-papiers du navigateur. En HTTP simple, elle utilise une méthode de copie plus ancienne ; tout le reste fonctionne de la même façon.
 - Ce que l'application mémorise reste dans le navigateur de chaque visiteur, séparément pour chaque adresse web.
+
+## Structure du projet
+
+| Chemin | Contenu |
+|---|---|
+| `index.html` | Structure de la page, point d'entrée |
+| `css/style.css` | Styles (thème sombre, mise en page) |
+| `js/i18n.js` | Traductions (fr, en, de, es) et `t()` |
+| `js/flora-core.js` | Simulation de Flora (système L, tortue, hauteur), format `.flora` et compilateur du dessin vers le code, sans code d'interface |
+| `js/examples.js` | Les dix flocons de neige intégrés |
+| `js/app.js` | Interface : état, éditeur, aperçu, son, fichiers et export |
+
+Les scripts sont chargés comme des scripts classiques (pas des modules ES) dans cet ordre, si bien que l'application fonctionne aussi quand on ouvre `index.html` directement depuis le disque.
 
 ## Fonctionnalités
 
